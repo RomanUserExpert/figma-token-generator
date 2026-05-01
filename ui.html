@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3D78FF; border-radius: 2px; }
+  * { scrollbar-width: thin; scrollbar-color: #3D78FF transparent; box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: #1E1E1E;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  #root-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #main-area {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Left sidebar */
+  .plugin-sidebar {
+    width: 200px;
+    background: #1E1E1E;
+    border-right: 1px solid #2A2A2A;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .plugin-sidebar-header {
+    height: 40px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #2A2A2A;
+    flex-shrink: 0;
+  }
+
+  .plugin-sidebar-header span {
+    font-size: 11px;
+    color: #A0A0A0;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  /* Right panel */
+  .plugin-panel {
+    flex: 1;
+    background: #1E1E1E;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .plugin-header {
+    height: 40px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #2A2A2A;
+    flex-shrink: 0;
+    background: #1E1E1E;
+  }
+
+  .plugin-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .plugin-icon {
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    background: #3D78FF;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .plugin-title-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #E0E0E0;
+    letter-spacing: 0.01em;
+  }
+
+
+  /* Footer */
+  .plugin-footer {
+    flex-shrink: 0;
+    background: #1A1A1A;
+    border-top: 1px solid #2A2A2A;
+    padding: 10px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+
+<div id="root-layout">
+  <div id="main-area">
+    <!-- Module sidebar -->
+    <div class="plugin-sidebar">
+      <div class="plugin-sidebar-header">
+        <span>Token Modules</span>
+      </div>
+      <div id="modules-sidebar"></div>
+    </div>
+
+    <!-- Config panel -->
+    <div class="plugin-panel">
+      <div class="plugin-header">
+        <div class="plugin-title">
+          <div class="plugin-icon">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <rect x="1" y="1" width="3.5" height="3.5" rx="0.5" fill="white" opacity="0.9"/>
+              <rect x="5.5" y="1" width="3.5" height="3.5" rx="0.5" fill="white" opacity="0.6"/>
+              <rect x="1" y="5.5" width="3.5" height="3.5" rx="0.5" fill="white" opacity="0.6"/>
+              <rect x="5.5" y="5.5" width="3.5" height="3.5" rx="0.5" fill="white" opacity="0.3"/>
+            </svg>
+          </div>
+          <span class="plugin-title-text">Token Studio</span>
+        </div>
+      </div>
+      <div id="plugin-root" style="flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="plugin-footer" id="footer-root"></div>
+</div>
+
+<script type="text/babel">
+const { useState, useRef, useCallback } = React;
+
+// ── tiny primitives ───────────────────────────────────────────────────────────
+
+function Toggle({ on, onChange }) {
+  return (
+    <div onClick={onChange} style={{
+      width: 28, height: 16, borderRadius: 8,
+      background: on ? '#3D78FF' : '#3A3A3A',
+      cursor: 'pointer', position: 'relative',
+      transition: 'background 0.2s', flexShrink: 0
+    }}>
+      <div style={{
+        position: 'absolute', top: 2,
+        left: on ? 14 : 2,
+        width: 12, height: 12, borderRadius: '50%',
+        background: '#fff',
+        transition: 'left 0.2s',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.4)'
+      }} />
+    </div>
+  );
+}
+
+function FieldRow({ label, hint, children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: '#AEAEAE' }}>{label}</div>
+        {hint && <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>{hint}</div>}
+      </div>
+      <div style={{ flexShrink: 0, width: 160 }}>{children}</div>
+    </div>
+  );
+}
+
+function SelectInput({ value, onChange, options }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} style={{
+      height: 28, background: '#2C2C2C', border: '1px solid #3A3A3A',
+      borderRadius: 4, color: '#C4C4C4', fontSize: 11, fontFamily: 'inherit',
+      padding: '0 24px 0 8px', outline: 'none', cursor: 'pointer',
+      appearance: 'none',
+      backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23666' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 7px center',
+      width: '100%',
+    }}>
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+function FontFamilySelect({ value, onChange, families }) {
+  const [foc, setFoc] = useState(false);
+  const loading = families === null;
+  return (
+    <>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        list={families ? 'figma-font-families' : undefined}
+        placeholder={loading ? 'Loading fonts…' : 'Font family'}
+        onFocus={() => setFoc(true)}
+        onBlur={() => setFoc(false)}
+        style={{
+          height: 28, width: '100%', background: '#2C2C2C',
+          border: `1px solid ${foc ? '#3D78FF' : '#3A3A3A'}`,
+          borderRadius: 4, color: loading ? '#555' : '#C4C4C4', fontSize: 11,
+          fontFamily: 'inherit', padding: '0 8px', outline: 'none', boxSizing: 'border-box',
+          boxShadow: foc ? '0 0 0 2px rgba(61,120,255,0.2)' : 'none',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
+        }}
+      />
+      {families && (
+        <datalist id="figma-font-families">
+          {families.map(f => <option key={f} value={f} />)}
+        </datalist>
+      )}
+    </>
+  );
+}
+
+function TextInput({ value, onChange, mono }) {
+  const [foc, setFoc] = useState(false);
+  return (
+    <input value={value} onChange={e => onChange(e.target.value)}
+      onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
+      style={{
+        height: 28, background: '#2C2C2C',
+        border: `1px solid ${foc ? '#3D78FF' : '#3A3A3A'}`,
+        borderRadius: 4, color: '#C4C4C4', fontSize: 11,
+        fontFamily: mono ? "'SF Mono','Fira Code',monospace" : 'inherit',
+        padding: '0 8px', outline: 'none', width: '100%',
+        boxShadow: foc ? '0 0 0 2px rgba(61,120,255,0.2)' : 'none',
+        transition: 'border-color 0.15s, box-shadow 0.15s'
+      }}
+    />
+  );
+}
+
+// ── color field ───────────────────────────────────────────────────────────────
+
+function ColorFieldRow({ label, colorKey, colors, setColors, editable, onLabelChange, onRemove }) {
+  const accent = '#3D78FF';
+  const color = colors[colorKey] || '#3A3A3A';
+  const pickerRef = React.useRef();
+  const [foc, setFoc] = React.useState(false);
+  const [labelFoc, setLabelFoc] = React.useState(false);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6, gap: 0 }}>
+      {editable ? (
+        <input value={label} onChange={e => onLabelChange(e.target.value)}
+          onFocus={() => setLabelFoc(true)} onBlur={() => setLabelFoc(false)}
+          placeholder="name"
+          style={{
+            width: 68, flexShrink: 0, height: 28, background: 'transparent',
+            border: 'none', borderBottom: `1px solid ${labelFoc ? accent : '#3A3A3A'}`,
+            outline: 'none', color: labelFoc ? '#D0D0D0' : '#A0A0A0',
+            fontSize: 12, fontFamily: 'inherit', padding: '0 0 0 2px',
+            transition: 'border-color 0.15s, color 0.15s', marginRight: 0
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: 12, color: '#A0A0A0', width: 68, flexShrink: 0 }}>{label}</span>
+      )}
+      <input ref={pickerRef} type="color" value={color}
+        onChange={e => setColors(p => ({ ...p, [colorKey]: e.target.value }))}
+        style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }} />
+      <div style={{
+        flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+        height: 28, background: '#252525', borderRadius: 4,
+        border: `1px solid ${foc ? accent : '#333'}`,
+        padding: '0 8px',
+        boxShadow: foc ? `0 0 0 2px rgba(61,120,255,0.2)` : 'none',
+        transition: 'border-color 0.15s, box-shadow 0.15s'
+      }}>
+        <div onClick={() => pickerRef.current.click()} style={{
+          width: 14, height: 14, borderRadius: 3, background: color, flexShrink: 0,
+          border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer'
+        }} />
+        <input value={color.replace('#','').toUpperCase()}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9a-fA-F]/g,'').slice(0,6);
+            if (v.length === 6) setColors(p => ({ ...p, [colorKey]: '#'+v }));
+          }}
+          onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none',
+            color: '#C4C4C4', fontSize: 11, fontFamily: "'SF Mono','Fira Code',monospace",
+            letterSpacing: '0.05em' }} maxLength={6} />
+      </div>
+      {editable && (
+        <div onClick={onRemove} title="Remove"
+          style={{ marginLeft: 6, cursor: 'pointer', color: '#666', flexShrink: 0, lineHeight: 0, transition: 'color 0.1s' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#A0A0A0'}
+          onMouseLeave={e => e.currentTarget.style.color = '#666'}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── section helpers ───────────────────────────────────────────────────────────
+
+const ColorSectionHeader = ({ label }) => (
+  <div style={{
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#A0A0A0',
+    textTransform: 'uppercase', marginBottom: 10
+  }}>{label}</div>
+);
+
+const ColorSection = ({ children }) => (
+  <div style={{ paddingTop: 10, paddingBottom: 10, borderBottom: '1px solid #2A2A2A' }}>
+    {children}
+  </div>
+);
+
+// ── module config panels ──────────────────────────────────────────────────────
+
+const MODULE_CONFIGS = {
+  'Colors': function ColorsConfig({ config, setConfig, colors, setColors }) {
+    const customColors = config.customColors || [];
+    const setCustomColors = updater => setConfig(p => ({
+      ...p,
+      customColors: typeof updater === 'function' ? updater(p.customColors || []) : updater
+    }));
+    const accent = '#3D78FF';
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <ColorSection>
+          <ColorSectionHeader label="Base Colors" />
+          {[['Brand','Brand'],['Info','Info'],['Neutral','Neutral'],['Error','Error'],['Success','Success'],['Warning','Warning']].map(([label, key]) => (
+            <ColorFieldRow key={key} label={label} colorKey={key} colors={colors} setColors={setColors} />
+          ))}
+          {customColors.map((c, i) => (
+            <ColorFieldRow key={i} label={c.label} colorKey={c.label || `custom${i+1}`}
+              colors={colors} setColors={setColors} editable
+              onLabelChange={v => {
+                const oldKey = c.label || `custom${i+1}`;
+                const newKey = v || `custom${i+1}`;
+                setCustomColors(p => p.map((x, j) => j === i ? {...x, label: v} : x));
+                if (oldKey !== newKey) {
+                  setColors(p => { const n = {...p}; n[newKey] = n[oldKey]; delete n[oldKey]; return n; });
+                }
+              }}
+              onRemove={() => {
+                const key = c.label || `custom${i+1}`;
+                setCustomColors(p => p.filter((_, j) => j !== i));
+                setColors(p => { const n = {...p}; delete n[key]; return n; });
+              }}
+            />
+          ))}
+          <div style={{ textAlign: 'right', marginTop: 4 }}>
+            <span onClick={() => {
+              const label = `custom${customColors.length+1}`;
+              setCustomColors(p => [...p, { label }]);
+              setColors(p => ({...p, [label]: '#6B7280'}));
+            }}
+              style={{ fontSize: 11, color: accent, cursor: 'pointer', userSelect: 'none' }}
+              onMouseEnter={e => e.currentTarget.style.opacity='0.7'}
+              onMouseLeave={e => e.currentTarget.style.opacity='1'}
+            >+ add custom color</span>
+          </div>
+        </ColorSection>
+
+        <ColorSection>
+          <ColorSectionHeader label="Core Settings" />
+          {[
+            { label: 'Collection name', key: 'collection', def: 'Primitives' },
+            { label: 'Shade scale', key: 'shadeCount', def: 'standard', type: 'select', options: [
+              {value:'compact',label:'Compact — 8 shades'},
+              {value:'standard',label:'Standard — 10 shades'},
+              {value:'system',label:'System — 11 shades'}
+            ]},
+            { label: 'Naming', key: 'naming', def: 'step100', type: 'select', options: [
+              {value:'step100',label:'Step 100 (100, 200, 300…)'},
+              {value:'step50', label:'Step 50 (50, 100, 150…)'},
+              {value:'step1',  label:'Step 1 (1, 2, 3…)'}
+            ]},
+          ].map(({ label, key, def, type, options }) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: '#A0A0A0', width: 90, flexShrink: 0, lineHeight: 1.3 }}>{label}</span>
+              <div style={{ flex: 1 }}>
+                {type === 'select'
+                  ? <SelectInput value={config[key] || def} onChange={v => setConfig(p => ({...p, [key]: v}))} options={options} />
+                  : <div style={{ height: 28, background: '#252525', border: '1px solid #333', borderRadius: 4 }}>
+                      <input value={config[key] ?? def}
+                        onChange={e => setConfig(p => ({ ...p, [key]: e.target.value }))}
+                        style={{ width: '100%', height: '100%', background: 'transparent', border: 'none',
+                          outline: 'none', color: '#C4C4C4', fontSize: 11, padding: '0 8px',
+                          fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    </div>
+                }
+              </div>
+            </div>
+          ))}
+        </ColorSection>
+
+        <ColorSection>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Toggle on={config.darkModeOn ?? false} onChange={() => setConfig(p => ({...p, darkModeOn: !p.darkModeOn}))} />
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#A0A0A0', textTransform: 'uppercase' }}>Dark Mode</div>
+          </div>
+          {config.darkModeOn && (
+            <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 4, background: '#252525', border: '1px solid #2C2C2C' }}>
+              <div style={{ fontSize: 10, color: '#777', lineHeight: 1.6 }}>
+                Creates <strong style={{color:'#A0A0A0'}}>Primitives</strong> + <strong style={{color:'#A0A0A0'}}>Primitives Dark</strong> collections.<br/>
+                Semantics map the same shade step from each — e.g. <span style={{fontFamily:'monospace'}}>brand/600</span> → <span style={{fontFamily:'monospace'}}>brand/600</span> — with different values per mode.
+              </div>
+            </div>
+          )}
+        </ColorSection>
+
+        <ColorSection>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Toggle on={config.semanticOn ?? false} onChange={() => setConfig(p => ({...p, semanticOn: !p.semanticOn}))} />
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#A0A0A0', textTransform: 'uppercase' }}>Semantic Tokens</div>
+          </div>
+          {config.semanticOn && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: '#A0A0A0', width: 90, flexShrink: 0 }}>Collection name</span>
+                <div style={{ flex: 1, height: 28, background: '#252525', border: '1px solid #333', borderRadius: 4 }}>
+                  <input value={config.semanticCollection || 'Semantics'}
+                    onChange={e => setConfig(p => ({...p, semanticCollection: e.target.value}))}
+                    style={{ width: '100%', height: '100%', background: 'transparent', border: 'none',
+                      outline: 'none', color: '#C4C4C4', fontSize: 11, padding: '0 8px', fontFamily: 'inherit',
+                      boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#777', lineHeight: 1.8 }}>
+                Includes: Background · Surface · Text · Icon · Border · Actions · Status
+              </div>
+            </div>
+          )}
+        </ColorSection>
+      </div>
+    );
+  },
+
+  'Spacing': function SpacingConfig({ config, setConfig }) {
+    const base = config.base || '4';
+    const prefix = config.prefix || 'sp';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <FieldRow label="Collection name">
+          <TextInput value={config.collection || 'Spacing'} onChange={v => setConfig(p => ({...p, collection: v}))} />
+        </FieldRow>
+        <FieldRow label="Prefix">
+          <TextInput value={prefix} onChange={v => setConfig(p => ({...p, prefix: v}))} mono />
+        </FieldRow>
+        <FieldRow label="Base unit">
+          <SelectInput value={base} onChange={v => setConfig(p => ({...p, base: v}))}
+            options={[{value:'2',label:'2'},{value:'4',label:'4'},{value:'6',label:'6'},{value:'8',label:'8'}]} />
+        </FieldRow>
+        <FieldRow label="Scale size">
+          <SelectInput value={config.qty || 'standard'} onChange={v => setConfig(p => ({...p, qty: v}))}
+            options={[
+              {value:'compact', label:'Compact — 8 tokens'},
+              {value:'standard', label:'Standard — 12 tokens'},
+              {value:'system', label:'System — 16 tokens'},
+            ]} />
+        </FieldRow>
+        <FieldRow label="Naming">
+          <SelectInput value={config.naming || 'size'} onChange={v => setConfig(p => ({...p, naming: v}))}
+            options={[
+              {value:'size', label:'Sequential (1, 2, 3…)'},
+              {value:'number', label:'Value based (4, 8, 12…)'},
+            ]} />
+        </FieldRow>
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 9, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Preview</div>
+          <div style={{ fontSize: 10, color: '#777', fontFamily: 'monospace', lineHeight: 1.8 }}>
+            {Array.from({length: 3}, (_, i) => {
+              const val = parseInt(base) * (i + 1);
+              const name = config.naming === 'number' ? `${prefix}-${val}` : `${prefix}-${i+1}`;
+              const coll = config.collection || 'Spacing';
+              return <div key={i}>{coll}/{name} = {val}px</div>;
+            })}
+            <div style={{ color: '#666' }}>…</div>
+          </div>
+        </div>
+      </div>
+    );
+  },
+
+  'Typography': function TypographyConfig({ config, setConfig }) {
+    const [fontFamilies, setFontFamilies] = React.useState(window.__figmaFonts || null);
+
+    React.useEffect(() => {
+      if (window.__figmaFonts) return;
+      const handler = (e) => {
+        const msg = e.data?.pluginMessage;
+        if (msg?.type === 'fonts-list') {
+          window.__figmaFonts = msg.families;
+          setFontFamilies(msg.families);
+        }
+      };
+      window.addEventListener('message', handler);
+      parent.postMessage({ pluginMessage: { type: 'get-fonts' } }, '*');
+      return () => window.removeEventListener('message', handler);
+    }, []);
+
+    const DEFAULT_FONTS = [
+      { name: 'Geist', ratio: 'minor-third', uses: { Heading: true, Title: true } },
+      { name: 'Inter', ratio: 'minor-third', uses: { Body: true, Label: true, Caption: true } },
+    ];
+
+    // Persist defaults into config on first open so backend always receives them
+    React.useEffect(() => {
+      if (!config.fonts) setConfig(p => ({ ...p, fonts: DEFAULT_FONTS }));
+    }, []);
+
+    const fonts = config.fonts || DEFAULT_FONTS;
+    const setFonts = updater => setConfig(p => ({
+      ...p,
+      fonts: typeof updater === 'function'
+        ? updater(p.fonts || DEFAULT_FONTS)
+        : updater
+    }));
+
+    const USE_TYPES = ['Heading', 'Title', 'Body', 'Label', 'Caption'];
+
+    const RATIOS = [
+      { value: 'minor-second',   label: 'Minor 2nd — 1.067' },
+      { value: 'major-second',   label: 'Major 2nd — 1.125' },
+      { value: 'minor-third',    label: 'Minor 3rd — 1.200 (Standard)' },
+      { value: 'major-third',    label: 'Major 3rd — 1.250' },
+      { value: 'perfect-fourth', label: 'Perfect 4th — 1.333' },
+    ];
+
+    const updateFont = (i, patch) => setFonts(fs => fs.map((f, j) => j === i ? { ...f, ...patch } : f));
+    const toggleUse  = (i, key)  => setFonts(fs => {
+      const turningOn = !fs[i].uses?.[key];
+      return fs.map((f, j) => {
+        if (j === i) return { ...f, uses: { ...f.uses, [key]: turningOn } };
+        // if enabling on this font, remove from every other font
+        if (turningOn) return { ...f, uses: { ...f.uses, [key]: false } };
+        return f;
+      });
+    });
+    const addFont    = ()        => setFonts(fs => [...fs, { name: '', ratio: 'minor-third', uses: {} }]);
+    const removeFont = i         => setFonts(fs => fs.filter((_, j) => j !== i));
+
+    const presets = [
+      { value: 'compact',  label: 'Compact',  desc: 'Enterprise dashboards, admin panels, dense systems' },
+      { value: 'standard', label: 'Standard', desc: 'SaaS products, web apps, marketplaces' },
+      { value: 'large',    label: 'Large',    desc: 'Landing pages, marketing websites' },
+    ];
+    const activePreset = config.size || 'standard';
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Preset */}
+        <div>
+          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Preset</div>
+          <div style={{ display: 'flex', gap: 2, marginBottom: 6 }}>
+            {presets.map(s => (
+              <div key={s.value} onClick={() => setConfig(p => ({...p, size: s.value}))}
+                style={{ flex: 1, textAlign: 'center', padding: '5px 0', borderRadius: 4, cursor: 'pointer', fontSize: 11,
+                  background: activePreset === s.value ? '#2A2A2A' : 'transparent',
+                  color: activePreset === s.value ? '#C4C4C4' : '#666',
+                  border: activePreset === s.value ? '1px solid #3A3A3A' : '1px solid transparent',
+                  transition: 'all 0.15s' }}>
+                {s.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: '#666', padding: '5px 8px', background: '#1A1A1A', borderRadius: 4 }}>
+            {presets.find(s => s.value === activePreset)?.desc}
+          </div>
+        </div>
+
+        {/* Font cards */}
+        {fonts.map((font, i) => (
+          <div key={i} style={{ border: '1px solid #252525', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '7px 10px', background: '#1A1A1A', borderBottom: '1px solid #252525' }}>
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#AEAEAE' }}>Font {i + 1}</span>
+              {i > 0 && (
+                <span onClick={() => removeFont(i)} style={{ fontSize: 11, color: '#555', cursor: 'pointer',
+                  transition: 'color 0.1s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#A0A0A0'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#555'}>
+                  Remove
+                </span>
+              )}
+            </div>
+
+            <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>Family</div>
+                <FontFamilySelect value={font.name} onChange={v => updateFont(i, { name: v })} families={fontFamilies} />
+              </div>
+
+              <div>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>Scale ratio</div>
+                <SelectInput value={font.ratio || 'minor-third'} onChange={v => updateFont(i, { ratio: v })} options={RATIOS} />
+              </div>
+
+              <div>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 6 }}>Assign to</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {USE_TYPES.map(key => {
+                    const on = !!font.uses?.[key];
+                    const taken = !on && fonts.some((f, j) => j !== i && !!f.uses?.[key]);
+                    return (
+                      <div key={key} onClick={() => toggleUse(i, key)} title={taken ? 'Assigned to another font — click to move' : undefined} style={{
+                        padding: '3px 9px', borderRadius: 3, fontSize: 11, cursor: 'pointer',
+                        background: on ? 'rgba(61,120,255,0.12)' : '#1E1E1E',
+                        color: on ? '#3D78FF' : taken ? '#555' : '#555',
+                        border: `1px solid ${on ? 'rgba(61,120,255,0.3)' : taken ? '#333' : '#333'}`,
+                        opacity: taken ? 0.35 : 1,
+                        transition: 'all 0.12s'
+                      }}>{key}</div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Add font */}
+        <div onClick={addFont}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: 30, borderRadius: 4, border: '1px dashed #2A2A2A', cursor: 'pointer',
+            fontSize: 11, color: '#555', transition: 'border-color 0.15s, color 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor='#3D78FF'; e.currentTarget.style.color='#3D78FF'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor='#2A2A2A'; e.currentTarget.style.color='#555'; }}>
+          + Add font
+        </div>
+
+
+      </div>
+    );
+  },
+
+  'Border Radius': function RadiusConfig({ config, setConfig }) {
+    const base = config.base || '4';
+    const prefix = config.prefix || 'rd';
+    const collection = config.collection || 'Border Radius';
+    const qty = config.qty || 'standard';
+    const count = qty === 'compact' ? 4 : qty === 'system' ? 8 : 6;
+    const naming = config.naming || 'size';
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <FieldRow label="Collection name">
+          <TextInput value={collection} onChange={v => setConfig(p => ({...p, collection: v}))} />
+        </FieldRow>
+        <FieldRow label="Prefix">
+          <TextInput value={prefix} onChange={v => setConfig(p => ({...p, prefix: v}))} mono />
+        </FieldRow>
+        <FieldRow label="Base unit">
+          <SelectInput value={base} onChange={v => setConfig(p => ({...p, base: v}))}
+            options={[{value:'2',label:'2'},{value:'4',label:'4'},{value:'6',label:'6'},{value:'8',label:'8'}]} />
+        </FieldRow>
+        <FieldRow label="Scale size">
+          <SelectInput value={qty} onChange={v => setConfig(p => ({...p, qty: v}))}
+            options={[
+              {value:'compact',  label:'Compact — 4 tokens'},
+              {value:'standard', label:'Standard — 6 tokens'},
+              {value:'system',   label:'System — 8 tokens'},
+            ]} />
+        </FieldRow>
+        <FieldRow label="Naming">
+          <SelectInput value={naming} onChange={v => setConfig(p => ({...p, naming: v}))}
+            options={[
+              {value:'size',   label:'Sequential (1, 2, 3…)'},
+              {value:'number', label:'Value based (0, 4, 8…)'},
+            ]} />
+        </FieldRow>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 12, color: '#AEAEAE' }}>Include full / pill</span>
+          <Toggle on={config.full !== false} onChange={() => setConfig(p => ({...p, full: !(p.full !== false)}))} />
+        </div>
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 9, color: '#A0A0A0', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Preview</div>
+          <div style={{ fontSize: 10, color: '#777', fontFamily: 'monospace', lineHeight: 1.8 }}>
+            {Array.from({length: count}, (_, i) => {
+              const val = i === 0 ? 0 : parseInt(base) * i;
+              const name = naming === 'number' ? `${val}` : `${i + 1}`;
+              return <div key={i}>{collection}/{prefix}-{name} = {val}px</div>;
+            })}
+            {config.full !== false && <div>{collection}/{prefix}-full = 9999px</div>}
+          </div>
+        </div>
+      </div>
+    );
+  },
+
+  'Elevation': function ElevationConfig({ config, setConfig }) {
+    const presets = [
+      { value: 'soft',     label: 'Soft',     desc: 'Low contrast, blurred shadows' },
+      { value: 'material', label: 'Material',  desc: 'Layered ambient + key shadows' },
+      { value: 'sharp',    label: 'Sharp',     desc: 'Hard-edged, high contrast' },
+    ];
+    const active = config.preset || 'soft';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Shadow style</div>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {presets.map(p => (
+              <div key={p.value} onClick={() => setConfig(c => ({...c, preset: p.value}))}
+                style={{ flex: 1, textAlign: 'center', padding: '5px 0', borderRadius: 4, cursor: 'pointer', fontSize: 11,
+                  background: active === p.value ? '#2A2A2A' : 'transparent',
+                  color: active === p.value ? '#C4C4C4' : '#777',
+                  border: active === p.value ? '1px solid #3A3A3A' : '1px solid transparent' }}>
+                {p.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: '#777', marginTop: 5, padding: '4px 8px', background: '#1A1A1A', borderRadius: 4 }}>
+            {presets.find(p => p.value === active)?.desc}
+          </div>
+        </div>
+        <FieldRow label="Collection name">
+          <TextInput value={config.collection || 'Elevation'} onChange={v => setConfig(p => ({...p, collection: v}))} />
+        </FieldRow>
+        <FieldRow label="Prefix">
+          <TextInput value={config.prefix || 'shadow'} onChange={v => setConfig(p => ({...p, prefix: v}))} mono />
+        </FieldRow>
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 9, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Tokens</div>
+          {['none','xs','sm','md','lg','xl'].map(t => (
+            <div key={t} style={{ fontSize: 10, color: '#777', fontFamily: 'monospace', lineHeight: 1.8 }}>
+              {config.collection || 'Elevation'}/{t}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  },
+
+};
+
+// ── main plugin UI ────────────────────────────────────────────────────────────
+
+function TokenStudio({ activeModule, sharedColors, setSharedColors, sharedModuleConfigs, setSharedModuleConfigs }) {
+  const [colors, setColorsInner] = useState(sharedColors || {
+    Brand: '#7C3AED', Info: '#2563EB', Neutral: '#6B7280',
+    Error: '#EF4444', Success: '#22C55E', Warning: '#F59E0B',
+  });
+  const setColors = useCallback((updater) => {
+    const next = typeof updater === 'function' ? updater(colors) : updater;
+    setColorsInner(next);
+    if (setSharedColors) setSharedColors(next);
+  }, [colors, setSharedColors]);
+
+  const [moduleConfigs, setModuleConfigsInner] = useState(sharedModuleConfigs || {});
+  const setModuleConfig = useCallback((name, updater) => {
+    setModuleConfigsInner(prev => {
+      const next = { ...prev, [name]: typeof updater === 'function' ? updater(prev[name] || {}) : updater };
+      if (setSharedModuleConfigs) setSharedModuleConfigs(next);
+      return next;
+    });
+  }, [setSharedModuleConfigs]);
+
+  if (activeModule && MODULE_CONFIGS[activeModule]) {
+    const ConfigPanel = MODULE_CONFIGS[activeModule];
+    return (
+      <div style={{ padding: 14, fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
+        <ConfigPanel
+          config={moduleConfigs[activeModule] || {}}
+          setConfig={updater => setModuleConfig(activeModule, updater)}
+          colors={colors}
+          setColors={setColors}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased',
+    }}>
+      <span style={{ fontSize: 11, color: '#666', textAlign: 'center', lineHeight: 1.6 }}>
+        Select a module from the left<br/>to configure its settings
+      </span>
+    </div>
+  );
+}
+
+// ── sidebar modules panel ─────────────────────────────────────────────────────
+
+function ModuleItem({ name, checked, isActive, icon, onToggle, onClick }) {
+  const [hov, setHov] = React.useState(false);
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      onClick={onClick}
+      style={{
+        height: 32, padding: '0 12px',
+        display: 'flex', alignItems: 'center', gap: 9,
+        cursor: 'pointer',
+        background: isActive ? 'rgba(61,120,255,0.12)' : hov ? 'rgba(255,255,255,0.04)' : 'transparent',
+        transition: 'background 0.1s',
+        borderLeft: isActive ? '2px solid #3D78FF' : '2px solid transparent',
+      }}>
+      <div onClick={onToggle} style={{
+        width: 14, height: 14, borderRadius: 2, flexShrink: 0,
+        border: checked ? 'none' : '1px solid #3A3A3A',
+        background: checked ? '#3D78FF' : '#2C2C2C',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'background 0.1s', cursor: 'pointer'
+      }}>
+        {checked && (
+          <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+            <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </div>
+      <span style={{ color: isActive ? '#3D78FF' : checked ? '#AEAEAE' : '#777', fontSize: 11, flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: 11, color: isActive ? '#C8C8C8' : checked ? '#C4C4C4' : '#888', flex: 1, transition: 'color 0.1s' }}>{name}</span>
+      <svg width="6" height="10" viewBox="0 0 6 10" fill="none"
+        style={{ opacity: isActive ? 1 : hov ? 0.4 : 0, transition: 'opacity 0.1s', flexShrink: 0 }}>
+        <path d="M1 1.5L4.5 5L1 8.5" stroke={isActive ? '#3D78FF' : '#A0A0A0'} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </div>
+  );
+}
+
+function ClearAllButton() {
+  const [stage, setStage] = React.useState('idle'); // idle | confirm1 | confirm2
+  const [done, setDone] = React.useState(false);
+
+  React.useEffect(() => {
+    const handler = e => {
+      const msg = e.data?.pluginMessage;
+      if (msg?.type === 'clear-done') { setDone(true); setStage('idle'); setTimeout(() => setDone(false), 2000); }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  if (done) return (
+    <div style={{ padding: '10px 12px', borderTop: '1px solid #2A2A2A', textAlign: 'center', fontSize: 10, color: '#22C55E', letterSpacing: '0.05em' }}>
+      Cleared
+    </div>
+  );
+
+  if (stage === 'idle') return (
+    <div style={{ padding: '10px 12px', borderTop: '1px solid #2A2A2A' }}>
+      <button onClick={() => setStage('confirm1')} style={{
+        width: '100%', padding: '5px 0', background: 'transparent', border: '1px solid #3A2A2A',
+        borderRadius: 4, color: '#7A4040', fontSize: 10, cursor: 'pointer', letterSpacing: '0.05em',
+        fontFamily: 'inherit', transition: 'all 0.15s'
+      }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = '#7A4040'; e.currentTarget.style.color = '#EF4444'; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = '#3A2A2A'; e.currentTarget.style.color = '#7A4040'; }}
+      >Clear all</button>
+    </div>
+  );
+
+  if (stage === 'confirm1') return (
+    <div style={{ padding: '10px 12px', borderTop: '1px solid #2A2A2A' }}>
+      <div style={{ fontSize: 10, color: '#A0A0A0', marginBottom: 6, textAlign: 'center' }}>Delete all variables & styles?</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => setStage('idle')} style={{
+          flex: 1, padding: '4px 0', background: '#252525', border: '1px solid #333',
+          borderRadius: 4, color: '#A0A0A0', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
+        }}>Cancel</button>
+        <button onClick={() => setStage('confirm2')} style={{
+          flex: 1, padding: '4px 0', background: '#3A1A1A', border: '1px solid #7A3030',
+          borderRadius: 4, color: '#EF4444', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
+        }}>Delete</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '10px 12px', borderTop: '1px solid #2A2A2A' }}>
+      <div style={{ fontSize: 10, color: '#EF4444', marginBottom: 6, textAlign: 'center', fontWeight: 600 }}>This cannot be undone.</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => setStage('idle')} style={{
+          flex: 1, padding: '4px 0', background: '#252525', border: '1px solid #333',
+          borderRadius: 4, color: '#A0A0A0', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
+        }}>Cancel</button>
+        <button onClick={() => {
+          setStage('idle');
+          parent.postMessage({ pluginMessage: { type: 'clear-all' } }, '*');
+        }} style={{
+          flex: 1, padding: '4px 0', background: '#7A1A1A', border: '1px solid #EF4444',
+          borderRadius: 4, color: '#FFF', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600
+        }}>Yes, delete all</button>
+      </div>
+    </div>
+  );
+}
+
+function ModulesSidebar({ modules, setModules, activeModule, setActiveModule }) {
+  const moduleIcons = {
+    'Colors': (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1"/>
+        <path d="M6 1.5v9" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      </svg>
+    ),
+    'Spacing': (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M1 6h10M1 3h2M1 9h2M9 3h2M9 9h2" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      </svg>
+    ),
+    'Typography': (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2 3h8M6 3v6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    ),
+    'Border Radius': (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2 9V5c0-1.657 1.343-3 3-3h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      </svg>
+    ),
+    'Elevation': (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <rect x="2" y="4" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+        <rect x="3" y="2.5" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1" opacity="0.7"/>
+        <rect x="4" y="1" width="7" height="6" rx="1" stroke="currentColor" strokeWidth="1"/>
+      </svg>
+    ),
+  };
+
+  const allChecked = Object.values(modules).every(Boolean);
+  const someChecked = Object.values(modules).some(Boolean);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #2A2A2A' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+          <div
+            onClick={() => {
+              const next = !allChecked;
+              setModules(prev => Object.fromEntries(Object.keys(prev).map(k => [k, next])));
+            }}
+            style={{
+              width: 14, height: 14, borderRadius: 2, flexShrink: 0,
+              border: (allChecked || someChecked) ? 'none' : '1px solid #3A3A3A',
+              background: (allChecked || someChecked) ? '#3D78FF' : '#2C2C2C',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+            }}
+          >
+            {allChecked && (
+              <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            {!allChecked && someChecked && (
+              <svg width="8" height="2" viewBox="0 0 8 2" fill="none">
+                <path d="M1 1h6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            )}
+          </div>
+          <span style={{ fontSize: 11, color: '#A0A0A0', fontWeight: 500 }}>Select all</span>
+        </label>
+      </div>
+
+      <div style={{ flex: 1, padding: '6px 0' }}>
+        {Object.entries(modules).map(([name, checked]) => (
+          <ModuleItem key={name} name={name} checked={checked} isActive={activeModule === name}
+            icon={moduleIcons[name]}
+            onToggle={e => { e.stopPropagation(); setModules(prev => ({ ...prev, [name]: !prev[name] })); }}
+            onClick={() => setActiveModule(name)} />
+        ))}
+      </div>
+      <ClearAllButton />
+    </div>
+  );
+}
+
+// ── shared state via custom events ────────────────────────────────────────────
+
+const INITIAL_MODULES = {
+  'Colors': true,
+  'Spacing': true,
+  'Typography': true,
+  'Border Radius': true,
+  'Elevation': true,
+};
+
+function useSharedModules() {
+  const [modules, setModulesInner] = useState(INITIAL_MODULES);
+  const setModules = useCallback((updater) => {
+    setModulesInner(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      window.__pluginState = { ...(window.__pluginState || {}), modules: next };
+      window.dispatchEvent(new CustomEvent('modules-sync', { detail: next }));
+      return next;
+    });
+  }, []);
+  React.useEffect(() => {
+    window.__pluginState = { ...(window.__pluginState || {}), modules };
+    const handler = e => setModulesInner(e.detail);
+    window.addEventListener('modules-sync', handler);
+    return () => window.removeEventListener('modules-sync', handler);
+  }, []);
+  return [modules, setModules];
+}
+
+function useSharedNav() {
+  const [activeModule, setActiveModuleInner] = useState('Colors');
+  const setActiveModule = useCallback((name) => {
+    window.dispatchEvent(new CustomEvent('nav-sync', { detail: name }));
+    setActiveModuleInner(name);
+  }, []);
+  React.useEffect(() => {
+    const handler = e => setActiveModuleInner(e.detail);
+    window.addEventListener('nav-sync', handler);
+    return () => window.removeEventListener('nav-sync', handler);
+  }, []);
+  return [activeModule, setActiveModule];
+}
+
+function useSharedGenerate() {
+  const [state, setStateInner] = useState({ overwrite: true, status: 'idle' });
+  const setState = useCallback((updater) => {
+    setStateInner(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      window.dispatchEvent(new CustomEvent('generate-sync', { detail: next }));
+      return next;
+    });
+  }, []);
+  React.useEffect(() => {
+    const handler = e => setStateInner(e.detail);
+    window.addEventListener('generate-sync', handler);
+    return () => window.removeEventListener('generate-sync', handler);
+  }, []);
+  return [state, setState];
+}
+
+// ── footer ────────────────────────────────────────────────────────────────────
+
+function FooterApp() {
+  const [gen, setGen] = useSharedGenerate();
+  const [btnHov, setBtnHov] = useState(false);
+  const [btnActive, setBtnActive] = useState(false);
+  const accent = '#3D78FF';
+
+  // Listen for responses from code.js
+  React.useEffect(() => {
+    const handler = (e) => {
+      const msg = e.data?.pluginMessage;
+      if (!msg) return;
+      if (msg.type === 'done')  setGen(p => ({ ...p, status: 'done', result: msg.result }));
+      if (msg.type === 'error') setGen(p => ({ ...p, status: 'error', errorMsg: msg.message }));
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleGenerate = () => {
+    if (gen.status === 'generating') return;
+    setGen(p => ({ ...p, status: 'generating' }));
+    parent.postMessage({
+      pluginMessage: {
+        type: 'generate',
+        payload: { ...(window.__pluginState || {}), overwrite: gen.overwrite }
+      }
+    }, '*');
+  };
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Toggle on={gen.overwrite} onChange={() => setGen(p => ({ ...p, overwrite: !p.overwrite }))} />
+          <div>
+            <span style={{ fontSize: 12, color: '#AEAEAE' }}>Overwrite existing</span>
+            <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>Replace variables with same name</div>
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={handleGenerate}
+        onMouseEnter={() => setBtnHov(true)}
+        onMouseLeave={() => { setBtnHov(false); setBtnActive(false); }}
+        onMouseDown={() => setBtnActive(true)}
+        onMouseUp={() => setBtnActive(false)}
+        disabled={gen.status === 'generating'}
+        style={{
+          width: '100%', height: 34,
+          background: gen.status === 'generating' ? '#2a3a5e' : btnActive ? '#2b5bcc' : btnHov ? '#4f88ff' : accent,
+          color: gen.status === 'generating' ? '#6890cc' : '#fff',
+          border: 'none', borderRadius: 4,
+          fontSize: 12, fontWeight: 600, letterSpacing: '0.01em',
+          cursor: gen.status === 'generating' ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          transition: 'background 0.15s, color 0.15s',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7
+        }}
+      >
+        {gen.status === 'generating' ? (
+          <>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14" strokeDashoffset="5" strokeLinecap="round"/>
+            </svg>
+            Generating…
+          </>
+        ) : 'Generate tokens'}
+      </button>
+      <div style={{ height: 16, marginTop: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {gen.status === 'idle' && <span style={{ fontSize: 11, color: '#777' }}>Ready to generate</span>}
+        {gen.status === 'generating' && <span style={{ fontSize: 11, color: '#6890cc' }}>Writing variables…</span>}
+        {gen.status === 'done' && gen.result && (
+          <span style={{ fontSize: 11, color: '#4CAF7D', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+              <circle cx="5.5" cy="5.5" r="5" stroke="#4CAF7D" strokeWidth="1"/>
+              <path d="M3 5.5L4.8 7.2L8 4" stroke="#4CAF7D" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Done — {gen.result.collections} collections, {gen.result.variables} variables
+          </span>
+        )}
+        {gen.status === 'error' && (
+          <span style={{ fontSize: 11, color: '#EF4444' }}>{gen.errorMsg || 'Something went wrong'}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── app roots ─────────────────────────────────────────────────────────────────
+
+function SidebarApp() {
+  const [modules, setModules] = useSharedModules();
+  const [activeModule, setActiveModule] = useSharedNav();
+  return <ModulesSidebar modules={modules} setModules={setModules} activeModule={activeModule} setActiveModule={setActiveModule} />;
+}
+
+function PluginApp() {
+  const [activeModule] = useSharedNav();
+  const [colors, setColors] = React.useState({
+    Brand: '#7C3AED', Info: '#2563EB', Neutral: '#6B7280',
+    Error: '#EF4444', Success: '#22C55E', Warning: '#F59E0B',
+  });
+  const [moduleConfigs, setModuleConfigs] = React.useState({});
+
+  // Sync to global state so FooterApp can read it for generate payload
+  React.useEffect(() => {
+    window.__pluginState = { ...(window.__pluginState || {}), colors, moduleConfigs };
+  }, [colors, moduleConfigs]);
+
+  return (
+    <TokenStudio
+      activeModule={activeModule}
+      sharedColors={colors}
+      setSharedColors={setColors}
+      sharedModuleConfigs={moduleConfigs}
+      setSharedModuleConfigs={setModuleConfigs}
+    />
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('modules-sidebar')).render(<SidebarApp />);
+ReactDOM.createRoot(document.getElementById('plugin-root')).render(<PluginApp />);
+ReactDOM.createRoot(document.getElementById('footer-root')).render(<FooterApp />);
+</script>
+
+</body>
+</html>
