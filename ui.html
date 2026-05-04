@@ -1177,7 +1177,7 @@ function FooterApp() {
         </div>
         <div onClick={() => setGen(p => ({ ...p, stylesheet: !(p.stylesheet !== false) }))}
           style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-          <div>
+          <div style={{ textAlign: 'right' }}>
             <span style={{ fontSize: 12, color: '#AEAEAE' }}>Stylesheet</span>
             <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>Visual token preview in Figma</div>
           </div>
