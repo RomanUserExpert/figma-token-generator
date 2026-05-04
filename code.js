@@ -147,14 +147,16 @@ async function generateColors(colors, cfg) {
     var semName = cfg.semanticCollection || 'Semantics';
     var semColl = await getOrCreateCollection(semName);
 
-    // Ensure two modes: Light + Dark
-    if (semColl.modes.length < 2) {
-      semColl.addMode('Dark');
+    if (darkEnabled) {
+      if (semColl.modes.length < 2) { semColl.addMode('Dark'); }
+      semColl.renameMode(semColl.modes[0].modeId, 'Light');
+      semColl.renameMode(semColl.modes[1].modeId, 'Dark');
+    } else {
+      while (semColl.modes.length > 1) { semColl.removeMode(semColl.modes[1].modeId); }
+      semColl.renameMode(semColl.modes[0].modeId, 'Light');
     }
-    semColl.renameMode(semColl.modes[0].modeId, 'Light');
-    semColl.renameMode(semColl.modes[1].modeId, 'Dark');
     var semLightId = semColl.modes[0].modeId;
-    var semDarkId  = semColl.modes[1].modeId;
+    var semDarkId  = darkEnabled ? semColl.modes[1].modeId : null;
 
     // Fetch all COLOR vars from both primitive collections for aliasing
     var allColorVars = await figma.variables.getLocalVariablesAsync('COLOR');
@@ -181,10 +183,11 @@ async function generateColors(colors, cfg) {
       var lightPrim = findVar(lightColl.id, t.colorName, lightStep);
       if (lightPrim && (!sv.__existed || overwrite)) sv.setValueForMode(semLightId, figma.variables.createVariableAlias(lightPrim));
 
-      // Dark mode: alias to dark primitives if available, otherwise fall back to light
-      var darkPrimColl = darkColl || lightColl;
-      var darkPrim = findVar(darkPrimColl.id, t.colorName, darkStep);
-      if (darkPrim && (!sv.__existed || overwrite)) sv.setValueForMode(semDarkId, figma.variables.createVariableAlias(darkPrim));
+      if (darkEnabled && semDarkId) {
+        var darkPrimColl = darkColl || lightColl;
+        var darkPrim = findVar(darkPrimColl.id, t.colorName, darkStep);
+        if (darkPrim && (!sv.__existed || overwrite)) sv.setValueForMode(semDarkId, figma.variables.createVariableAlias(darkPrim));
+      }
 
       vars++;
     }
@@ -214,38 +217,38 @@ function buildSemanticTokens(colorNames, steps) {
 
   // Background  (0 = lightest end, 1 = darkest end)
   add('bg/primary',   neutral, 0.00);
-  add('bg/secondary', neutral, 0.11);
-  add('bg/tertiary',  neutral, 0.22);
   add('bg/inversed',  neutral, 1.00);
 
   // Surface
-  add('surface/primary',   neutral, 0.11);
-  add('surface/secondary', neutral, 0.22);
-  add('surface/tertiary',  neutral, 0.33);
-  add('surface/inversed',  neutral, 0.89);
-  add('surface/brand',     brand,   0.00);
+  add('surface/primary',      neutral, 0.11);
+  add('surface/secondary',    neutral, 0.22);
+  add('surface/tertiary',     neutral, 0.33);
+  add('surface/inversed',     neutral, 0.89);
+  add('surface/brand/subtle', brand,   0.00);
+  add('surface/brand/strong', brand,   0.33);
 
   // Text
   add('text/primary',   neutral, 0.89);
-  add('text/secondary', neutral, 0.67);
-  add('text/tertiary',  neutral, 0.50);
+  add('text/secondary', neutral, 0.56);
+  add('text/tertiary',  neutral, 0.28);
   add('text/inversed',  neutral, 0.00);
   add('text/brand',     brand,   0.56);
 
   // Icon
   add('icon/primary',   neutral, 0.89);
   add('icon/secondary', neutral, 0.56);
-  add('icon/tertiary',  neutral, 0.39);
+  add('icon/tertiary',  neutral, 0.28);
   add('icon/inversed',  neutral, 0.00);
   add('icon/brand',     brand,   0.56);
 
   // Border
-  add('border/primary',   neutral, 0.39);
-  add('border/secondary', neutral, 0.28);
-  add('border/tertiary',  neutral, 0.17);
-  add('border/inversed',  neutral, 0.89);
-  add('border/brand',     brand,   0.39);
-  add('border/focus',     brand,   0.50);
+  add('border/primary',      neutral, 0.39);
+  add('border/secondary',    neutral, 0.28);
+  add('border/tertiary',     neutral, 0.17);
+  add('border/inversed',     neutral, 0.89);
+  add('border/brand/subtle', brand,   0.22);
+  add('border/brand/strong', brand,   0.50);
+  add('border/focus',        brand,   0.50);
 
   // Actions — primary
   add('action/primary/default',  brand,   0.44);
@@ -278,10 +281,12 @@ function buildSemanticTokens(colorNames, steps) {
     var status = statuses[i];
     if (lower.indexOf(status) === -1) continue;
 
-    add('surface/' + status, status, 0.00);
+    add('surface/' + status + '/subtle', status, 0.00);
+    add('surface/' + status + '/strong', status, 0.33);
     add('text/'    + status, status, 0.56);
     add('icon/'    + status, status, 0.56);
-    add('border/'  + status, status, 0.39);
+    add('border/'  + status + '/subtle', status, 0.22);
+    add('border/'  + status + '/strong', status, 0.50);
 
     add('action/' + status + '/default',  status, 0.44);
     add('action/' + status + '/hover',    status, 0.56);
@@ -339,12 +344,12 @@ async function generateBorderRadius(cfg) {
   for (var i = 0; i < count; i++) {
     var value = i === 0 ? 0 : base * i;
     var name = naming === 'number' ? ('' + value) : ('' + (i + 1));
-    var v = await getOrCreateVariable(prefix + '-' + name, collection, 'FLOAT', overwrite);
+    var v = await getOrCreateVariable('radius/' + prefix + '-' + name, collection, 'FLOAT', overwrite);
     applyVar(v, modeId, value, overwrite);
     vars++;
   }
   if (includeFull) {
-    var vf = await getOrCreateVariable(prefix + '-full', collection, 'FLOAT', overwrite);
+    var vf = await getOrCreateVariable('radius/' + prefix + '-full', collection, 'FLOAT', overwrite);
     applyVar(vf, modeId, 9999, overwrite);
     vars++;
   }
@@ -359,7 +364,7 @@ async function generateTypography(cfg) {
 
   var fonts    = cfg.fonts || [
     { name: 'Geist', ratio: 'minor-third', uses: { Heading: true, Title: true } },
-    { name: 'Inter', ratio: 'minor-third', uses: { Body: true, Label: true, Caption: true } },
+    { name: 'Inter', ratio: 'minor-third', uses: { Body: true, Label: true, Caption: true, Button: true, Link: true } },
   ];
   var preset   = cfg.size || 'standard';
   var overwrite = cfg.overwrite !== false;
@@ -373,6 +378,8 @@ async function generateTypography(cfg) {
       Body:    [['L',16],['M',14],['S',13]],
       Label:   [['L',14],['M',13],['S',12]],
       Caption: [['L',13],['M',12],['S',11]],
+      Button:  [['L',16],['M',14],['S',13]],
+      Link:    [['L',16],['M',14],['S',13]],
     },
     standard: {
       Heading: [['H1',48],['H2',40],['H3',32],['H4',28],['H5',24],['H6',20]],
@@ -380,6 +387,8 @@ async function generateTypography(cfg) {
       Body:    [['L',18],['M',16],['S',14]],
       Label:   [['L',16],['M',14],['S',12]],
       Caption: [['L',14],['M',12],['S',11]],
+      Button:  [['L',18],['M',16],['S',14]],
+      Link:    [['L',18],['M',16],['S',14]],
     },
     large: {
       Heading: [['H1',72],['H2',56],['H3',48],['H4',40],['H5',32],['H6',24]],
@@ -387,11 +396,13 @@ async function generateTypography(cfg) {
       Body:    [['L',20],['M',18],['S',16]],
       Label:   [['L',18],['M',16],['S',14]],
       Caption: [['L',16],['M',14],['S',12]],
+      Button:  [['L',20],['M',18],['S',16]],
+      Link:    [['L',20],['M',18],['S',16]],
     },
   };
 
-  var weightFor     = { Heading:'Semi Bold', Title:'Semi Bold', Body:'Regular', Label:'Medium', Caption:'Regular' };
-  var lineHeightFor = { Heading:120, Title:130, Body:150, Label:140, Caption:140 };
+  var weightFor     = { Heading:'Semi Bold', Title:'Semi Bold', Body:'Regular', Label:'Medium', Caption:'Regular', Button:'Medium', Link:'Regular' };
+  var lineHeightFor = { Heading:120, Title:130, Body:150, Label:140, Caption:140, Button:150, Link:150 };
 
   var sizes = sizeMaps[preset] || sizeMaps.standard;
 
@@ -515,10 +526,11 @@ async function generateTypography(cfg) {
           }
           totalStyles++;
 
-          style.name          = styleName;
-          style.fontSize      = px;
-          style.lineHeight    = { value: lhPct, unit: 'PERCENT' };
-          style.letterSpacing = { value: 0, unit: 'PERCENT' };
+          style.name           = styleName;
+          style.fontSize       = px;
+          style.lineHeight     = { value: lhPct, unit: 'PERCENT' };
+          style.letterSpacing  = { value: 0, unit: 'PERCENT' };
+          style.textDecoration = cat === 'Link' ? 'UNDERLINE' : 'NONE';
 
           try { style.fontName = { family: family, style: weight }; }
           catch (e) { style.fontName = { family: family, style: 'Regular' }; }
@@ -735,7 +747,7 @@ function buildLightShades(hex, steps, isNeutral) {
   // so lighter shades are nearly white/gray while deeper shades carry the user's hue.
   if (isNeutral) {
     return steps.map(function(step, i) {
-      if (i === 0) return { step: step, rgb: { r: 1, g: 1, b: 1 } };
+      if (i === 0) return { step: step, rgb: { r: 0.99, g: 0.99, b: 0.99 } };
       var v, s;
       if (i <= baseIdx) {
         var t = i / baseIdx;
@@ -874,16 +886,6 @@ async function getOrCreateVariable(name, collection, type, overwrite) {
 
 function applyVar(v, modeId, value, overwrite) {
   if (!v.__existed || overwrite) v.setValueForMode(modeId, value);
-}
-
-function snapStep(step, steps) {
-  if (steps.indexOf(step) !== -1) return step;
-  var best = steps[0], bestDist = Math.abs(steps[0] - step);
-  for (var i = 1; i < steps.length; i++) {
-    var d = Math.abs(steps[i] - step);
-    if (d < bestDist) { bestDist = d; best = steps[i]; }
-  }
-  return best;
 }
 
 function hexToRgbArray(hex) {

@@ -213,7 +213,7 @@ function SelectInput({ value, onChange, options }) {
   );
 }
 
-function FontFamilySelect({ value, onChange, families }) {
+function FontFamilySelect({ value, onChange, families, listId }) {
   const [foc, setFoc] = useState(false);
   const loading = families === null;
   return (
@@ -221,7 +221,7 @@ function FontFamilySelect({ value, onChange, families }) {
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
-        list={families ? 'figma-font-families' : undefined}
+        list={families ? listId : undefined}
         placeholder={loading ? 'Loading fonts…' : 'Font family'}
         onFocus={() => setFoc(true)}
         onBlur={() => setFoc(false)}
@@ -235,7 +235,7 @@ function FontFamilySelect({ value, onChange, families }) {
         }}
       />
       {families && (
-        <datalist id="figma-font-families">
+        <datalist id={listId}>
           {families.map(f => <option key={f} value={f} />)}
         </datalist>
       )}
@@ -261,6 +261,57 @@ function TextInput({ value, onChange, mono }) {
   );
 }
 
+// ── color validation ──────────────────────────────────────────────────────────
+
+function hexToHsl(hex) {
+  var v = hex.replace('#','');
+  var r = parseInt(v.slice(0,2),16)/255, g = parseInt(v.slice(2,4),16)/255, b = parseInt(v.slice(4,6),16)/255;
+  var max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+  var h = 0, s = 0, l = (max+min)/2;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2*l-1));
+    if (max === r) h = ((g-b)/d + (g<b?6:0))/6;
+    else if (max === g) h = ((b-r)/d+2)/6;
+    else h = ((r-g)/d+4)/6;
+  }
+  return { h: h*360, s: s*100, l: l*100 };
+}
+
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  var c = (1-Math.abs(2*l-1))*s, x = c*(1-Math.abs((h/60)%2-1)), m = l-c/2;
+  var r,g,b;
+  if (h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
+  var toHex = function(n) { return Math.round((n+m)*255).toString(16).padStart(2,'0'); };
+  return '#'+toHex(r)+toHex(g)+toHex(b);
+}
+
+const NEUTRAL_PALE_S = hexToHsl('#6B7280').s;
+
+function validateColor(hex, colorKey) {
+  if (!hex || hex.length < 7) return null;
+  const { s, l } = hexToHsl(hex);
+  if (l > 65) return 'too-light';
+  if (l < 22) return 'too-dark';
+  if (s < (colorKey === 'Neutral' ? NEUTRAL_PALE_S : 15)) return 'too-pale';
+  return null;
+}
+
+function adjustColor(hex, colorKey) {
+  const { h, s, l } = hexToHsl(hex);
+  if (l > 65) return hslToHex(h, Math.max(s, 65), 45);
+  if (l < 22) return hslToHex(h, Math.max(s, 65), 52);
+  if (s < (colorKey === 'Neutral' ? NEUTRAL_PALE_S : 15)) return hslToHex(h, 50, l);
+  return hex;
+}
+
+const WARN_MESSAGES = {
+  'too-light': 'Too light — may produce poor shade variation.',
+  'too-dark':  'Too dark — may produce poor shade variation.',
+  'too-pale':  'Too pale — may produce a washed-out shade scale.',
+};
+
 // ── color field ───────────────────────────────────────────────────────────────
 
 function ColorFieldRow({ label, colorKey, colors, setColors, editable, onLabelChange, onRemove }) {
@@ -269,9 +320,11 @@ function ColorFieldRow({ label, colorKey, colors, setColors, editable, onLabelCh
   const pickerRef = React.useRef();
   const [foc, setFoc] = React.useState(false);
   const [labelFoc, setLabelFoc] = React.useState(false);
+  const warning = validateColor(color, colorKey);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6, gap: 0 }}>
+    <div style={{ marginBottom: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
       {editable ? (
         <input value={label} onChange={e => onLabelChange(e.target.value)}
           onFocus={() => setLabelFoc(true)} onBlur={() => setLabelFoc(false)}
@@ -324,6 +377,27 @@ function ColorFieldRow({ label, colorKey, colors, setColors, editable, onLabelCh
         </div>
       )}
     </div>
+    {warning && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, marginLeft: 68,
+        padding: '4px 8px', borderRadius: 3,
+        background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)' }}>
+        <svg width="11" height="10" viewBox="0 0 11 10" fill="none" style={{ flexShrink: 0 }}>
+          <path d="M5.5 1L10 9.5H1L5.5 1z" stroke="#F59E0B" strokeWidth="1" strokeLinejoin="round"/>
+          <path d="M5.5 4v2.2" stroke="#F59E0B" strokeWidth="1.1" strokeLinecap="round"/>
+          <circle cx="5.5" cy="7.8" r="0.5" fill="#F59E0B"/>
+        </svg>
+        <span style={{ flex: 1, fontSize: 10, color: '#C97B10', lineHeight: 1.4 }}>{WARN_MESSAGES[warning]}</span>
+        <span onClick={() => setColors(p => ({ ...p, [colorKey]: adjustColor(color, colorKey) }))}
+          style={{ fontSize: 10, color: '#F59E0B', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+            padding: '1px 5px', borderRadius: 3, border: '1px solid rgba(245,158,11,0.3)',
+            transition: 'background 0.12s' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.12)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+          Fix
+        </span>
+      </div>
+    )}
+    </div>
   );
 }
 
@@ -357,13 +431,15 @@ const MODULE_CONFIGS = {
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <ColorSection>
           <ColorSectionHeader label="Base Colors" />
-          {[['Brand','Brand'],['Info','Info'],['Neutral','Neutral'],['Error','Error'],['Success','Success'],['Warning','Warning']].map(([label, key]) => (
+          {[['Neutral','Neutral'],['Brand','Brand'],['Info','Info'],['Error','Error'],['Success','Success'],['Warning','Warning']].map(([label, key]) => (
             <ColorFieldRow key={key} label={label} colorKey={key} colors={colors} setColors={setColors} />
           ))}
           {customColors.map((c, i) => (
             <ColorFieldRow key={i} label={c.label} colorKey={c.label || `custom${i+1}`}
               colors={colors} setColors={setColors} editable
               onLabelChange={v => {
+                const reserved = ['Neutral','Brand','Info','Error','Success','Warning'];
+                if (reserved.includes(v)) return;
                 const oldKey = c.label || `custom${i+1}`;
                 const newKey = v || `custom${i+1}`;
                 setCustomColors(p => p.map((x, j) => j === i ? {...x, label: v} : x));
@@ -531,7 +607,7 @@ const MODULE_CONFIGS = {
 
     const DEFAULT_FONTS = [
       { name: 'Geist', ratio: 'minor-third', uses: { Heading: true, Title: true } },
-      { name: 'Inter', ratio: 'minor-third', uses: { Body: true, Label: true, Caption: true } },
+      { name: 'Inter', ratio: 'minor-third', uses: { Body: true, Label: true, Caption: true, Button: true, Link: true } },
     ];
 
     // Persist defaults into config on first open so backend always receives them
@@ -547,7 +623,7 @@ const MODULE_CONFIGS = {
         : updater
     }));
 
-    const USE_TYPES = ['Heading', 'Title', 'Body', 'Label', 'Caption'];
+    const USE_TYPES = ['Heading', 'Title', 'Body', 'Label', 'Caption', 'Button', 'Link'];
 
     const RATIOS = [
       { value: 'minor-second',   label: 'Minor 2nd — 1.067' },
@@ -619,7 +695,7 @@ const MODULE_CONFIGS = {
             <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div>
                 <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>Family</div>
-                <FontFamilySelect value={font.name} onChange={v => updateFont(i, { name: v })} families={fontFamilies} />
+                <FontFamilySelect value={font.name} onChange={v => updateFont(i, { name: v })} families={fontFamilies} listId={'figma-font-families-' + i} />
               </div>
 
               <div>
@@ -769,7 +845,7 @@ const MODULE_CONFIGS = {
 
 function TokenStudio({ activeModule, sharedColors, setSharedColors, sharedModuleConfigs, setSharedModuleConfigs }) {
   const [colors, setColorsInner] = useState(sharedColors || {
-    Brand: '#7C3AED', Info: '#2563EB', Neutral: '#6B7280',
+    Neutral: '#6B7280', Brand: '#3D78FF', Info: '#0686D4',
     Error: '#EF4444', Success: '#22C55E', Warning: '#F59E0B',
   });
   const setColors = useCallback((updater) => {
@@ -1159,7 +1235,7 @@ function SidebarApp() {
 function PluginApp() {
   const [activeModule] = useSharedNav();
   const [colors, setColors] = React.useState({
-    Brand: '#7C3AED', Info: '#2563EB', Neutral: '#6B7280',
+    Neutral: '#6B7280', Brand: '#3D78FF', Info: '#0686D4',
     Error: '#EF4444', Success: '#22C55E', Warning: '#F59E0B',
   });
   const [moduleConfigs, setModuleConfigs] = React.useState({});
