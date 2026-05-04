@@ -724,28 +724,22 @@ async function generateStylesheet(modules, moduleConfigs) {
   var f;
 
   if (modules['Colors']) {
-    f = await ssColors(page, x, moduleConfigs['Colors'] || {});
-    if (f) x += f.width + 40;
+    try { f = await ssColors(page, x, moduleConfigs['Colors'] || {}); if (f) x += f.width + 40; } catch(e) {}
     if ((moduleConfigs['Colors'] || {}).semanticOn) {
-      f = await ssSemantics(page, x, moduleConfigs['Colors'] || {});
-      if (f) x += f.width + 40;
+      try { f = await ssSemantics(page, x, moduleConfigs['Colors'] || {}); if (f) x += f.width + 40; } catch(e) {}
     }
   }
   if (modules['Spacing']) {
-    f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {});
-    if (f) x += f.width + 40;
+    try { f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {}); if (f) x += f.width + 40; } catch(e) {}
   }
   if (modules['Typography']) {
-    f = await ssTypography(page, x, moduleConfigs['Typography'] || {});
-    if (f) x += f.width + 40;
+    try { f = await ssTypography(page, x, moduleConfigs['Typography'] || {}); if (f) x += f.width + 40; } catch(e) {}
   }
   if (modules['Border Radius']) {
-    f = await ssRadius(page, x, moduleConfigs['Border Radius'] || {});
-    if (f) x += f.width + 40;
+    try { f = await ssRadius(page, x, moduleConfigs['Border Radius'] || {}); if (f) x += f.width + 40; } catch(e) {}
   }
   if (modules['Elevation']) {
-    f = await ssElevation(page, x);
-    if (f) x += f.width + 40;
+    try { f = await ssElevation(page, x); if (f) x += f.width + 40; } catch(e) {}
   }
 }
 
@@ -1134,7 +1128,16 @@ async function ssElevation(page, xOff) {
     card.x = cx; card.y = y;
     card.cornerRadius = 6;
     card.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
-    try { if (style.effects.length > 0) card.effects = style.effects; } catch(e) {}
+    var cleanEffects = (style.effects || []).map(function(eff) {
+      return {
+        type: eff.type, visible: eff.visible !== false, blendMode: eff.blendMode || 'NORMAL',
+        color: eff.color || { r: 0, g: 0, b: 0, a: 0.1 },
+        offset: eff.offset || { x: 0, y: 2 },
+        radius: typeof eff.radius === 'number' ? eff.radius : 4,
+        spread: typeof eff.spread === 'number' ? eff.spread : 0,
+      };
+    });
+    try { if (cleanEffects.length > 0) card.effects = cleanEffects; } catch(e) {}
     frame.appendChild(card);
 
     var shortName = style.name.split('/').pop() || style.name;
