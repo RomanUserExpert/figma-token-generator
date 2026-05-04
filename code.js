@@ -722,8 +722,9 @@ async function generateElevation(cfg) {
 async function generateStylesheet(modules, moduleConfigs) {
   var page = null;
   try {
-    for (var pi = 0; pi < figma.pages.length; pi++) {
-      if (figma.pages[pi].name === 'Token Stylesheet') { page = figma.pages[pi]; break; }
+    var _pages = figma.root.children;
+    for (var pi = 0; pi < _pages.length; pi++) {
+      if (_pages[pi].name === 'Token Stylesheet') { page = _pages[pi]; break; }
     }
     if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
   } catch(e) { throw new Error('sheet-page: ' + e.message); }
