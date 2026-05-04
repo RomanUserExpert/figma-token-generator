@@ -163,7 +163,7 @@ async function generateColors(colors, cfg) {
     var semDarkId  = darkEnabled ? semColl.modes[1].modeId : null;
 
     // Fetch all COLOR vars from both primitive collections for aliasing
-    var allColorVars = await figma.variables.getLocalVariablesAsync('COLOR');
+    var allColorVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
 
     var findVar = function(collectionId, colorName, step) {
       var target = 'color/' + colorName + '/' + step;
@@ -427,7 +427,7 @@ async function generateTypography(cfg) {
 
   var typoColl   = doVars ? await getOrCreateCollection('Typography') : null;
   var typoModeId = typoColl ? typoColl.modes[0].modeId : null;
-  var existingStyles = doStyles ? await figma.getLocalTextStylesAsync() : [];
+  var existingStyles = doStyles ? ((await figma.getLocalTextStylesAsync()) || []) : [];
   var totalVars = 0;
   var totalStyles = 0;
 
@@ -633,7 +633,7 @@ async function generateElevation(cfg) {
 
   var elevColl   = await getOrCreateCollection(collectionName);
   var elevModeId = elevColl.modes[0].modeId;
-  var existingStyles = await figma.getLocalEffectStylesAsync();
+  var existingStyles = (await figma.getLocalEffectStylesAsync()) || [];
   var totalVars = 0;
 
   for (var i = 0; i < levels.length; i++) {
@@ -786,14 +786,14 @@ async function ssColors(page, xOff, cfg) {
   var SW = 44, GAP = 6, PAD = 32, LABEL_W = 80;
   var collName = cfg.collection || 'Primitives';
 
-  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
   var primColl = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === collName) { primColl = collections[i]; break; }
   }
   if (!primColl) return null;
 
-  var allVars = await figma.variables.getLocalVariablesAsync('COLOR');
+  var allVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
   var primVars = allVars.filter(function(v) {
     return v.variableCollectionId === primColl.id && v.name.startsWith('color/');
   });
@@ -863,14 +863,14 @@ async function ssSemantics(page, xOff, cfg) {
   var PAD = 32, SW = 16, LABEL_W = 220;
   var semName = cfg.semanticCollection || 'Semantics';
 
-  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
   var semColl = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === semName) { semColl = collections[i]; break; }
   }
   if (!semColl) return null;
 
-  var allVars = await figma.variables.getLocalVariablesAsync('COLOR');
+  var allVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
   var semVars = allVars.filter(function(v) { return v.variableCollectionId === semColl.id; });
   if (semVars.length === 0) return null;
 
@@ -929,14 +929,14 @@ async function ssSpacing(page, xOff, cfg) {
   var PAD = 32, NAME_W = 140, VAL_W = 44, MAX_BAR = 200, BAR_H = 8;
   var collName = cfg.collection || 'Spacing';
 
-  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
   var coll = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === collName) { coll = collections[i]; break; }
   }
   if (!coll) return null;
 
-  var allVars = await figma.variables.getLocalVariablesAsync('FLOAT');
+  var allVars = (await figma.variables.getLocalVariablesAsync('FLOAT')) || [];
   var spVars = allVars.filter(function(v) {
     return v.variableCollectionId === coll.id && v.name.startsWith('spacing/');
   });
@@ -983,7 +983,7 @@ async function ssTypography(page, xOff, cfg) {
   var COL_NAME = 140, COL_SIZE = 48, COL_WT = 88, COL_PREV = 140, COL_GAP = 16;
   var ROW_H = 36;
 
-  var styles = await figma.getLocalTextStylesAsync();
+  var styles = (await figma.getLocalTextStylesAsync()) || [];
   if (styles.length === 0) return null;
 
   var catOrder = ['Heading', 'Title', 'Body', 'Label', 'Caption', 'Button', 'Link'];
@@ -1056,14 +1056,14 @@ async function ssRadius(page, xOff, cfg) {
   var PAD = 32, CARD = 60, GAP = 16;
   var collName = cfg.collection || 'Border Radius';
 
-  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
   var coll = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === collName) { coll = collections[i]; break; }
   }
   if (!coll) return null;
 
-  var allVars = await figma.variables.getLocalVariablesAsync('FLOAT');
+  var allVars = (await figma.variables.getLocalVariablesAsync('FLOAT')) || [];
   var rdVars = allVars.filter(function(v) {
     return v.variableCollectionId === coll.id && v.name.startsWith('radius/');
   });
@@ -1108,7 +1108,7 @@ async function ssRadius(page, xOff, cfg) {
 async function ssElevation(page, xOff) {
   var PAD = 32, CARD_W = 80, CARD_H = 56, GAP = 28;
 
-  var styles = await figma.getLocalEffectStylesAsync();
+  var styles = (await figma.getLocalEffectStylesAsync()) || [];
   if (styles.length === 0) return null;
 
   var frameW = PAD + styles.length * (CARD_W + GAP) - GAP + PAD;
@@ -1310,7 +1310,7 @@ function findColorKey(colorNames, preferred) {
 }
 
 async function getOrCreateCollection(name) {
-  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === name) return collections[i];
   }
@@ -1318,7 +1318,7 @@ async function getOrCreateCollection(name) {
 }
 
 async function getOrCreateVariable(name, collection, type, overwrite) {
-  var all = await figma.variables.getLocalVariablesAsync(type);
+  var all = (await figma.variables.getLocalVariablesAsync(type)) || [];
   for (var i = 0; i < all.length; i++) {
     if (all[i].name === name && all[i].variableCollectionId === collection.id) {
       all[i].__existed = true;
