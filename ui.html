@@ -1175,11 +1175,24 @@ function FooterApp() {
             <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>Replace variables with same name</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Toggle on={gen.stylesheet !== false} onChange={() => setGen(p => ({ ...p, stylesheet: !(p.stylesheet !== false) }))} />
+        <div onClick={() => setGen(p => ({ ...p, stylesheet: !(p.stylesheet !== false) }))}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
           <div>
             <span style={{ fontSize: 12, color: '#AEAEAE' }}>Stylesheet</span>
             <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>Visual token preview in Figma</div>
+          </div>
+          <div style={{
+            width: 14, height: 14, borderRadius: 2, flexShrink: 0,
+            border: gen.stylesheet !== false ? 'none' : '1px solid #3A3A3A',
+            background: gen.stylesheet !== false ? '#3D78FF' : '#2C2C2C',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.1s',
+          }}>
+            {gen.stylesheet !== false && (
+              <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
           </div>
         </div>
       </div>
