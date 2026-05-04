@@ -714,8 +714,7 @@ async function generateStylesheet(modules, moduleConfigs) {
   }
   if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
 
-  var kids = page.children.slice();
-  for (var ki = 0; ki < kids.length; ki++) kids[ki].remove();
+  while (page.children.length > 0) { page.children[0].remove(); }
 
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch(e) {}
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Medium' }); } catch(e) {}
