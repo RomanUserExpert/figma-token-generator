@@ -1237,7 +1237,7 @@ function FooterApp() {
           </span>
         )}
         {gen.status === 'error' && (
-          <span style={{ fontSize: 11, color: '#EF4444' }}>{gen.errorMsg || 'Something went wrong'}</span>
+          <pre style={{ fontSize: 10, color: '#EF4444', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 120, overflowY: 'auto' }}>{gen.errorMsg || 'Something went wrong'}</pre>
         )}
       </div>
     </div>

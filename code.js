@@ -6,7 +6,7 @@ figma.ui.onmessage = async (msg) => {
       const result = await generateTokens(msg.payload);
       figma.ui.postMessage({ type: 'done', result });
     } catch (err) {
-      figma.ui.postMessage({ type: 'error', message: err.message });
+      figma.ui.postMessage({ type: 'error', message: err.message + '\n' + (err.stack || '') });
     }
   }
   if (msg.type === 'get-fonts') {
@@ -49,42 +49,54 @@ async function generateTokens(payload) {
   var totalCollections = 0;
 
   if (modules['Colors']) {
-    var cfg = Object.assign({}, moduleConfigs['Colors'] || {}, { overwrite: overwrite });
-    var r = await generateColors(colors, cfg);
-    totalVars += r.vars;
-    totalCollections += r.collections;
+    try {
+      var cfg = Object.assign({}, moduleConfigs['Colors'] || {}, { overwrite: overwrite });
+      var r = await generateColors(colors, cfg);
+      totalVars += r.vars;
+      totalCollections += r.collections;
+    } catch (e) { throw new Error('[Colors] ' + e.message); }
   }
 
   if (modules['Spacing']) {
-    var cfg2 = Object.assign({}, moduleConfigs['Spacing'] || {}, { overwrite: overwrite });
-    var r2 = await generateSpacing(cfg2);
-    totalVars += r2.vars;
-    totalCollections += 1;
+    try {
+      var cfg2 = Object.assign({}, moduleConfigs['Spacing'] || {}, { overwrite: overwrite });
+      var r2 = await generateSpacing(cfg2);
+      totalVars += r2.vars;
+      totalCollections += 1;
+    } catch (e) { throw new Error('[Spacing] ' + e.message); }
   }
 
   if (modules['Border Radius']) {
-    var cfg3 = Object.assign({}, moduleConfigs['Border Radius'] || {}, { overwrite: overwrite });
-    var r3 = await generateBorderRadius(cfg3);
-    totalVars += r3.vars;
-    totalCollections += 1;
+    try {
+      var cfg3 = Object.assign({}, moduleConfigs['Border Radius'] || {}, { overwrite: overwrite });
+      var r3 = await generateBorderRadius(cfg3);
+      totalVars += r3.vars;
+      totalCollections += 1;
+    } catch (e) { throw new Error('[Border Radius] ' + e.message); }
   }
 
   if (modules['Typography']) {
-    var cfg4 = Object.assign({}, moduleConfigs['Typography'] || {}, { overwrite: overwrite });
-    var r4 = await generateTypography(cfg4);
-    totalVars += r4.vars + r4.styles;
-    if (r4.vars > 0) totalCollections += 1;
+    try {
+      var cfg4 = Object.assign({}, moduleConfigs['Typography'] || {}, { overwrite: overwrite });
+      var r4 = await generateTypography(cfg4);
+      totalVars += r4.vars + r4.styles;
+      if (r4.vars > 0) totalCollections += 1;
+    } catch (e) { throw new Error('[Typography] ' + e.message); }
   }
 
   if (modules['Elevation']) {
-    var cfg5 = Object.assign({}, moduleConfigs['Elevation'] || {}, { overwrite: overwrite });
-    var r5 = await generateElevation(cfg5);
-    totalVars += r5.vars + r5.styles;
-    if (r5.vars > 0) totalCollections += 1;
+    try {
+      var cfg5 = Object.assign({}, moduleConfigs['Elevation'] || {}, { overwrite: overwrite });
+      var r5 = await generateElevation(cfg5);
+      totalVars += r5.vars + r5.styles;
+      if (r5.vars > 0) totalCollections += 1;
+    } catch (e) { throw new Error('[Elevation] ' + e.message); }
   }
 
   if (payload.stylesheet) {
-    await generateStylesheet(modules, moduleConfigs);
+    try {
+      await generateStylesheet(modules, moduleConfigs);
+    } catch (e) { throw new Error('[Stylesheet] ' + e.message); }
   }
 
   return { collections: totalCollections, variables: totalVars };
