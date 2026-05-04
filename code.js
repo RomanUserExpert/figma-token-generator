@@ -54,7 +54,7 @@ async function generateTokens(payload) {
       var r = await generateColors(colors, cfg);
       totalVars += r.vars;
       totalCollections += r.collections;
-    } catch (e) { throw new Error('[Colors] ' + e.message); }
+    } catch (e) { e.message = '[Colors] ' + e.message; throw e; }
   }
 
   if (modules['Spacing']) {
@@ -63,7 +63,7 @@ async function generateTokens(payload) {
       var r2 = await generateSpacing(cfg2);
       totalVars += r2.vars;
       totalCollections += 1;
-    } catch (e) { throw new Error('[Spacing] ' + e.message); }
+    } catch (e) { e.message = '[Spacing] ' + e.message; throw e; }
   }
 
   if (modules['Border Radius']) {
@@ -72,7 +72,7 @@ async function generateTokens(payload) {
       var r3 = await generateBorderRadius(cfg3);
       totalVars += r3.vars;
       totalCollections += 1;
-    } catch (e) { throw new Error('[Border Radius] ' + e.message); }
+    } catch (e) { e.message = '[Border Radius] ' + e.message; throw e; }
   }
 
   if (modules['Typography']) {
@@ -81,7 +81,7 @@ async function generateTokens(payload) {
       var r4 = await generateTypography(cfg4);
       totalVars += r4.vars + r4.styles;
       if (r4.vars > 0) totalCollections += 1;
-    } catch (e) { throw new Error('[Typography] ' + e.message); }
+    } catch (e) { e.message = '[Typography] ' + e.message; throw e; }
   }
 
   if (modules['Elevation']) {
@@ -90,13 +90,13 @@ async function generateTokens(payload) {
       var r5 = await generateElevation(cfg5);
       totalVars += r5.vars + r5.styles;
       if (r5.vars > 0) totalCollections += 1;
-    } catch (e) { throw new Error('[Elevation] ' + e.message); }
+    } catch (e) { e.message = '[Elevation] ' + e.message; throw e; }
   }
 
   if (payload.stylesheet) {
     try {
       await generateStylesheet(modules, moduleConfigs);
-    } catch (e) { throw new Error('[Stylesheet] ' + e.message); }
+    } catch (e) { e.message = '[Stylesheet] ' + e.message; throw e; }
   }
 
   return { collections: totalCollections, variables: totalVars };
@@ -721,12 +721,20 @@ async function generateElevation(cfg) {
 
 async function generateStylesheet(modules, moduleConfigs) {
   var page = null;
-  for (var pi = 0; pi < figma.pages.length; pi++) {
-    if (figma.pages[pi].name === 'Token Stylesheet') { page = figma.pages[pi]; break; }
-  }
-  if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
+  try {
+    for (var pi = 0; pi < figma.pages.length; pi++) {
+      if (figma.pages[pi].name === 'Token Stylesheet') { page = figma.pages[pi]; break; }
+    }
+    if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
+  } catch(e) { throw new Error('sheet-page: ' + e.message); }
 
-  while (page.children.length > 0) { page.children[0].remove(); }
+  // Clear children: snapshot count first so re-reading page.children mid-loop can't throw
+  try {
+    var _n = page.children ? page.children.length : 0;
+    for (var _ki = _n - 1; _ki >= 0; _ki--) {
+      try { page.children[_ki].remove(); } catch(e) {}
+    }
+  } catch(e) {}
 
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch(e) {}
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Medium' }); } catch(e) {}
