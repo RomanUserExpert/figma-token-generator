@@ -1160,7 +1160,7 @@ function FooterApp() {
     parent.postMessage({
       pluginMessage: {
         type: 'generate',
-        payload: { ...(window.__pluginState || {}), overwrite: gen.overwrite }
+        payload: { ...(window.__pluginState || {}), overwrite: gen.overwrite, stylesheet: gen.stylesheet !== false }
       }
     }, '*');
   };
@@ -1173,6 +1173,13 @@ function FooterApp() {
           <div>
             <span style={{ fontSize: 12, color: '#AEAEAE' }}>Overwrite existing</span>
             <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>Replace variables with same name</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Toggle on={gen.stylesheet !== false} onChange={() => setGen(p => ({ ...p, stylesheet: !(p.stylesheet !== false) }))} />
+          <div>
+            <span style={{ fontSize: 12, color: '#AEAEAE' }}>Stylesheet</span>
+            <div style={{ fontSize: 10, color: '#777', marginTop: 1 }}>Visual token preview in Figma</div>
           </div>
         </div>
       </div>

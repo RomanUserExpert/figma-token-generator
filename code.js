@@ -83,6 +83,10 @@ async function generateTokens(payload) {
     if (r5.vars > 0) totalCollections += 1;
   }
 
+  if (payload.stylesheet) {
+    await generateStylesheet(modules, moduleConfigs);
+  }
+
   return { collections: totalCollections, variables: totalVars };
 }
 
@@ -699,6 +703,446 @@ async function generateElevation(cfg) {
   }
 
   return { vars: totalVars, styles: levels.length };
+}
+
+// ── stylesheet ────────────────────────────────────────────────────────────────
+
+async function generateStylesheet(modules, moduleConfigs) {
+  var page = null;
+  for (var pi = 0; pi < figma.pages.length; pi++) {
+    if (figma.pages[pi].name === 'Token Stylesheet') { page = figma.pages[pi]; break; }
+  }
+  if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
+
+  var kids = page.children.slice();
+  for (var ki = 0; ki < kids.length; ki++) kids[ki].remove();
+
+  try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch(e) {}
+  try { await figma.loadFontAsync({ family: 'Inter', style: 'Medium' }); } catch(e) {}
+
+  var x = 40;
+  var f;
+
+  if (modules['Colors']) {
+    f = await ssColors(page, x, moduleConfigs['Colors'] || {});
+    if (f) x += f.width + 40;
+    if ((moduleConfigs['Colors'] || {}).semanticOn) {
+      f = await ssSemantics(page, x, moduleConfigs['Colors'] || {});
+      if (f) x += f.width + 40;
+    }
+  }
+  if (modules['Spacing']) {
+    f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {});
+    if (f) x += f.width + 40;
+  }
+  if (modules['Typography']) {
+    f = await ssTypography(page, x, moduleConfigs['Typography'] || {});
+    if (f) x += f.width + 40;
+  }
+  if (modules['Border Radius']) {
+    f = await ssRadius(page, x, moduleConfigs['Border Radius'] || {});
+    if (f) x += f.width + 40;
+  }
+  if (modules['Elevation']) {
+    f = await ssElevation(page, x);
+    if (f) x += f.width + 40;
+  }
+}
+
+// ── stylesheet helpers ────────────────────────────────────────────────────────
+
+function _ssTxt(parent, str, x, y, sz, wt, col) {
+  var t = figma.createText();
+  t.characters = String(str);
+  t.fontSize = sz;
+  t.fontName = { family: 'Inter', style: wt || 'Regular' };
+  t.fills = [{ type: 'SOLID', color: _ssRgb(col || '#333333') }];
+  t.x = x; t.y = y;
+  parent.appendChild(t);
+  return t;
+}
+
+function _ssRgb(hex) {
+  var v = (hex || '#000').replace('#', '');
+  if (v.length === 3) v = v[0]+v[0]+v[1]+v[1]+v[2]+v[2];
+  return { r: parseInt(v.slice(0,2),16)/255, g: parseInt(v.slice(2,4),16)/255, b: parseInt(v.slice(4,6),16)/255 };
+}
+
+function _ssShell(page, name, xOff) {
+  var f = figma.createFrame();
+  f.name = name;
+  f.x = xOff; f.y = 40;
+  f.resize(200, 200);
+  f.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+  f.cornerRadius = 8;
+  page.appendChild(f);
+  return f;
+}
+
+function _ssDivider(parent, x, y, w) {
+  var d = figma.createRectangle();
+  d.resize(w, 1);
+  d.x = x; d.y = y;
+  d.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.9, b: 0.9 } }];
+  parent.appendChild(d);
+}
+
+// ── colors ────────────────────────────────────────────────────────────────────
+
+async function ssColors(page, xOff, cfg) {
+  var SW = 44, GAP = 6, PAD = 32, LABEL_W = 80;
+  var collName = cfg.collection || 'Primitives';
+
+  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var primColl = null;
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].name === collName) { primColl = collections[i]; break; }
+  }
+  if (!primColl) return null;
+
+  var allVars = await figma.variables.getLocalVariablesAsync('COLOR');
+  var primVars = allVars.filter(function(v) {
+    return v.variableCollectionId === primColl.id && v.name.startsWith('color/');
+  });
+
+  var groups = {};
+  for (var vi = 0; vi < primVars.length; vi++) {
+    var pts = primVars[vi].name.split('/');
+    if (pts.length < 3) continue;
+    if (!groups[pts[1]]) groups[pts[1]] = [];
+    groups[pts[1]].push(primVars[vi]);
+  }
+  var cNames = Object.keys(groups);
+  cNames.forEach(function(n) {
+    groups[n].sort(function(a, b) {
+      return (parseInt(a.name.split('/')[2]) || 0) - (parseInt(b.name.split('/')[2]) || 0);
+    });
+  });
+
+  var maxN = cNames.reduce(function(m, n) { return Math.max(m, groups[n].length); }, 0);
+  var frameW = PAD + LABEL_W + maxN * (SW + GAP) - GAP + PAD;
+  var modeId = primColl.modes[0].modeId;
+  var frame = _ssShell(page, 'Colors', xOff);
+  var y = PAD;
+
+  _ssTxt(frame, 'Colors', PAD, y, 13, 'Medium', '#1A1A1A');
+  y += 32;
+
+  for (var ci = 0; ci < cNames.length; ci++) {
+    var cn = cNames[ci];
+    var shades = groups[cn];
+    _ssTxt(frame, cn.charAt(0).toUpperCase() + cn.slice(1), PAD, y + 14, 10, 'Medium', '#888888');
+
+    for (var si = 0; si < shades.length; si++) {
+      var sv = shades[si];
+      var val = sv.valuesByMode[modeId];
+      var rx = PAD + LABEL_W + si * (SW + GAP);
+
+      var rect = figma.createRectangle();
+      rect.resize(SW, SW);
+      rect.x = rx; rect.y = y;
+      rect.cornerRadius = 4;
+      var fillColor = (val && typeof val.r === 'number') ? { r: val.r, g: val.g, b: val.b } : { r: 0.85, g: 0.85, b: 0.85 };
+      rect.fills = [{ type: 'SOLID', color: fillColor,
+        boundVariables: { color: figma.variables.createVariableAlias(sv) } }];
+      frame.appendChild(rect);
+
+      var sl = figma.createText();
+      sl.characters = sv.name.split('/')[2] || '';
+      sl.fontSize = 8;
+      sl.fontName = { family: 'Inter', style: 'Regular' };
+      sl.fills = [{ type: 'SOLID', color: { r: 0.7, g: 0.7, b: 0.7 } }];
+      sl.x = rx; sl.y = y + SW + 3;
+      sl.textAlignHorizontal = 'CENTER';
+      sl.resize(SW, 12);
+      frame.appendChild(sl);
+    }
+    y += SW + 24 + 8;
+  }
+
+  frame.resize(frameW, y + PAD - 8);
+  return frame;
+}
+
+// ── semantic tokens ───────────────────────────────────────────────────────────
+
+async function ssSemantics(page, xOff, cfg) {
+  var PAD = 32, SW = 16, LABEL_W = 220;
+  var semName = cfg.semanticCollection || 'Semantics';
+
+  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var semColl = null;
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].name === semName) { semColl = collections[i]; break; }
+  }
+  if (!semColl) return null;
+
+  var allVars = await figma.variables.getLocalVariablesAsync('COLOR');
+  var semVars = allVars.filter(function(v) { return v.variableCollectionId === semColl.id; });
+  if (semVars.length === 0) return null;
+
+  var semLightId = semColl.modes[0].modeId;
+  var groupOrder = ['bg', 'surface', 'text', 'icon', 'border', 'action'];
+  var groups = {};
+  for (var vi = 0; vi < semVars.length; vi++) {
+    var prefix = semVars[vi].name.split('/')[0];
+    if (!groups[prefix]) groups[prefix] = [];
+    groups[prefix].push(semVars[vi]);
+  }
+  var prefixes = groupOrder.filter(function(k) { return groups[k]; });
+  Object.keys(groups).forEach(function(k) { if (prefixes.indexOf(k) === -1) prefixes.push(k); });
+
+  var frameW = PAD + SW + 8 + LABEL_W + PAD;
+  var frame = _ssShell(page, 'Semantic Tokens', xOff);
+  var y = PAD;
+
+  _ssTxt(frame, 'Semantic Tokens', PAD, y, 13, 'Medium', '#1A1A1A');
+  y += 32;
+
+  for (var gi = 0; gi < prefixes.length; gi++) {
+    var gpref = prefixes[gi];
+    var gvars = groups[gpref];
+
+    if (gi > 0) { _ssDivider(frame, PAD, y, frameW - PAD * 2); y += 12; }
+    _ssTxt(frame, gpref, PAD, y, 9, 'Medium', '#AAAAAA');
+    y += 18;
+
+    for (var gvi = 0; gvi < gvars.length; gvi++) {
+      var gv = gvars[gvi];
+      var gval = gv.valuesByMode[semLightId];
+
+      var gr = figma.createRectangle();
+      gr.resize(SW, SW);
+      gr.x = PAD; gr.y = y;
+      gr.cornerRadius = 2;
+      var gFillColor = (gval && typeof gval.r === 'number') ? { r: gval.r, g: gval.g, b: gval.b } : { r: 0.85, g: 0.85, b: 0.85 };
+      gr.fills = [{ type: 'SOLID', color: gFillColor,
+        boundVariables: { color: figma.variables.createVariableAlias(gv) } }];
+      frame.appendChild(gr);
+
+      _ssTxt(frame, gv.name, PAD + SW + 8, y + 1, 9, 'Regular', '#555555');
+      y += SW + 5;
+    }
+    y += 6;
+  }
+
+  frame.resize(frameW, y + PAD);
+  return frame;
+}
+
+// ── spacing ───────────────────────────────────────────────────────────────────
+
+async function ssSpacing(page, xOff, cfg) {
+  var PAD = 32, NAME_W = 140, VAL_W = 44, MAX_BAR = 200, BAR_H = 8;
+  var collName = cfg.collection || 'Spacing';
+
+  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var coll = null;
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].name === collName) { coll = collections[i]; break; }
+  }
+  if (!coll) return null;
+
+  var allVars = await figma.variables.getLocalVariablesAsync('FLOAT');
+  var spVars = allVars.filter(function(v) {
+    return v.variableCollectionId === coll.id && v.name.startsWith('spacing/');
+  });
+  var modeId = coll.modes[0].modeId;
+  spVars.sort(function(a, b) {
+    return (a.valuesByMode[modeId] || 0) - (b.valuesByMode[modeId] || 0);
+  });
+  if (spVars.length === 0) return null;
+
+  var maxVal = spVars.reduce(function(m, v) { return Math.max(m, v.valuesByMode[modeId] || 0); }, 0);
+  var frameW = PAD + NAME_W + VAL_W + MAX_BAR + PAD;
+  var frame = _ssShell(page, 'Spacing', xOff);
+  var y = PAD;
+
+  _ssTxt(frame, 'Spacing', PAD, y, 13, 'Medium', '#1A1A1A');
+  y += 32;
+
+  for (var vi = 0; vi < spVars.length; vi++) {
+    var sv = spVars[vi];
+    var val = sv.valuesByMode[modeId] || 0;
+    var barW = maxVal > 0 ? Math.max(2, Math.round(val / maxVal * MAX_BAR)) : 2;
+
+    _ssTxt(frame, sv.name, PAD, y, 9, 'Regular', '#555555');
+    _ssTxt(frame, val + 'px', PAD + NAME_W, y, 9, 'Regular', '#AAAAAA');
+
+    var bar = figma.createRectangle();
+    bar.resize(barW, BAR_H);
+    bar.x = PAD + NAME_W + VAL_W; bar.y = y;
+    bar.cornerRadius = 2;
+    bar.fills = [{ type: 'SOLID', color: _ssRgb('#3D78FF'), opacity: 0.6 }];
+    frame.appendChild(bar);
+
+    y += BAR_H + 14;
+  }
+
+  frame.resize(frameW, y + PAD - 14);
+  return frame;
+}
+
+// ── typography ────────────────────────────────────────────────────────────────
+
+async function ssTypography(page, xOff, cfg) {
+  var PAD = 32;
+  var COL_NAME = 140, COL_SIZE = 48, COL_WT = 88, COL_PREV = 140, COL_GAP = 16;
+  var ROW_H = 36;
+
+  var styles = await figma.getLocalTextStylesAsync();
+  if (styles.length === 0) return null;
+
+  var catOrder = ['Heading', 'Title', 'Body', 'Label', 'Caption', 'Button', 'Link'];
+  styles.sort(function(a, b) {
+    var ac = a.name.split('/')[0], bc = b.name.split('/')[0];
+    var ai = catOrder.indexOf(ac), bi = catOrder.indexOf(bc);
+    if (ai !== bi) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    return a.name.localeCompare(b.name);
+  });
+
+  var frameW = PAD + COL_NAME + COL_GAP + COL_SIZE + COL_GAP + COL_WT + COL_GAP + COL_PREV + PAD;
+  var frame = _ssShell(page, 'Typography', xOff);
+  var y = PAD;
+
+  _ssTxt(frame, 'Typography', PAD, y, 13, 'Medium', '#1A1A1A');
+  y += 32;
+
+  // Header
+  var hx = PAD;
+  _ssTxt(frame, 'Style',   hx, y, 9, 'Medium', '#AAAAAA'); hx += COL_NAME + COL_GAP;
+  _ssTxt(frame, 'Size',    hx, y, 9, 'Medium', '#AAAAAA'); hx += COL_SIZE + COL_GAP;
+  _ssTxt(frame, 'Weight',  hx, y, 9, 'Medium', '#AAAAAA'); hx += COL_WT   + COL_GAP;
+  _ssTxt(frame, 'Preview', hx, y, 9, 'Medium', '#AAAAAA');
+  y += 20;
+  _ssDivider(frame, PAD, y, frameW - PAD * 2);
+  y += 8;
+
+  var prevCat = null;
+  for (var si = 0; si < styles.length; si++) {
+    var style = styles[si];
+    var parts = style.name.split('/');
+    var cat = parts[0], variant = parts[1] || '';
+
+    if (prevCat !== null && cat !== prevCat) {
+      _ssDivider(frame, PAD, y + 4, frameW - PAD * 2);
+      y += 10;
+    }
+    prevCat = cat;
+
+    var cx = PAD;
+    _ssTxt(frame, cat + ' / ' + variant, cx, y + 11, 9, 'Regular', '#888888');
+    cx += COL_NAME + COL_GAP;
+    _ssTxt(frame, style.fontSize + 'px', cx, y + 11, 9, 'Regular', '#AAAAAA');
+    cx += COL_SIZE + COL_GAP;
+    var wtLabel = style.fontName ? style.fontName.style : '—';
+    _ssTxt(frame, wtLabel, cx, y + 11, 9, 'Regular', '#AAAAAA');
+    cx += COL_WT + COL_GAP;
+
+    try {
+      if (style.fontName) await figma.loadFontAsync(style.fontName);
+      var pv = figma.createText();
+      pv.characters = 'Aa';
+      pv.fontSize = Math.min(style.fontSize, 28);
+      pv.fontName = style.fontName || { family: 'Inter', style: 'Regular' };
+      pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
+      pv.x = cx; pv.y = y + 4;
+      frame.appendChild(pv);
+    } catch(e) {}
+
+    y += ROW_H;
+  }
+
+  frame.resize(frameW, y + PAD);
+  return frame;
+}
+
+// ── border radius ─────────────────────────────────────────────────────────────
+
+async function ssRadius(page, xOff, cfg) {
+  var PAD = 32, CARD = 60, GAP = 16;
+  var collName = cfg.collection || 'Border Radius';
+
+  var collections = await figma.variables.getLocalVariableCollectionsAsync();
+  var coll = null;
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].name === collName) { coll = collections[i]; break; }
+  }
+  if (!coll) return null;
+
+  var allVars = await figma.variables.getLocalVariablesAsync('FLOAT');
+  var rdVars = allVars.filter(function(v) {
+    return v.variableCollectionId === coll.id && v.name.startsWith('radius/');
+  });
+  var modeId = coll.modes[0].modeId;
+  rdVars.sort(function(a, b) {
+    return (a.valuesByMode[modeId] || 0) - (b.valuesByMode[modeId] || 0);
+  });
+  if (rdVars.length === 0) return null;
+
+  var frameW = PAD + rdVars.length * (CARD + GAP) - GAP + PAD;
+  var frame = _ssShell(page, 'Border Radius', xOff);
+  var y = PAD;
+
+  _ssTxt(frame, 'Border Radius', PAD, y, 13, 'Medium', '#1A1A1A');
+  y += 32;
+
+  for (var vi = 0; vi < rdVars.length; vi++) {
+    var rv = rdVars[vi];
+    var val = rv.valuesByMode[modeId] || 0;
+    var rx = PAD + vi * (CARD + GAP);
+
+    var rect = figma.createRectangle();
+    rect.resize(CARD, CARD);
+    rect.x = rx; rect.y = y;
+    rect.cornerRadius = Math.min(val, CARD / 2);
+    rect.fills = [{ type: 'SOLID', color: _ssRgb('#EBF0FF') }];
+    rect.strokes = [{ type: 'SOLID', color: _ssRgb('#BDCBFF') }];
+    rect.strokeWeight = 1;
+    frame.appendChild(rect);
+
+    var shortName = rv.name.replace('radius/', '');
+    _ssTxt(frame, shortName, rx, y + CARD + 6, 8, 'Regular', '#AAAAAA');
+    _ssTxt(frame, val >= 9000 ? '∞' : val + 'px', rx, y + CARD + 18, 8, 'Regular', '#CCCCCC');
+  }
+
+  frame.resize(frameW, y + CARD + 34 + PAD);
+  return frame;
+}
+
+// ── elevation ─────────────────────────────────────────────────────────────────
+
+async function ssElevation(page, xOff) {
+  var PAD = 32, CARD_W = 80, CARD_H = 56, GAP = 28;
+
+  var styles = await figma.getLocalEffectStylesAsync();
+  if (styles.length === 0) return null;
+
+  var frameW = PAD + styles.length * (CARD_W + GAP) - GAP + PAD;
+  var frame = _ssShell(page, 'Elevation', xOff);
+  var y = PAD;
+
+  _ssTxt(frame, 'Elevation', PAD, y, 13, 'Medium', '#1A1A1A');
+  y += 40;
+
+  for (var si = 0; si < styles.length; si++) {
+    var style = styles[si];
+    var cx = PAD + si * (CARD_W + GAP);
+
+    var card = figma.createRectangle();
+    card.resize(CARD_W, CARD_H);
+    card.x = cx; card.y = y;
+    card.cornerRadius = 6;
+    card.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+    try { if (style.effects.length > 0) card.effects = style.effects; } catch(e) {}
+    frame.appendChild(card);
+
+    var shortName = style.name.split('/').pop() || style.name;
+    _ssTxt(frame, shortName, cx, y + CARD_H + 8, 8, 'Regular', '#AAAAAA');
+  }
+
+  frame.resize(frameW, y + CARD_H + 28 + PAD);
+  return frame;
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
