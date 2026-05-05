@@ -1154,14 +1154,18 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, y + 11, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, y + 11, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — link to text style, then cap size
+    // Example — write characters first, then link style, then cap size via range override
     try {
       if (style.fontName) await figma.loadFontAsync(style.fontName);
       var pv = figma.createText();
       pv.fontName = style.fontName || { family: 'Inter', style: 'Regular' };
-      try { pv.textStyleId = style.id; } catch(e) {}
       pv.characters = 'Aa';
-      if (pv.fontSize > 28) pv.fontSize = 28;
+      // Link style after characters exist (empty-node textStyleId fails silently)
+      try { pv.textStyleId = style.id; } catch(e2) {}
+      // textStyleId makes fontSize read-only at node level; use range override to cap
+      if (pv.fontSize > 28) {
+        try { pv.setRangeFontSize(0, 2, 28); } catch(e2) {}
+      }
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y + 4;
       frame.appendChild(pv);
