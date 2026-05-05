@@ -1277,17 +1277,23 @@ async function ssElevation(page, xOff) {
     card.x = cx; card.y = y;
     card.cornerRadius = 6;
     card.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
-    var cleanEffects = (style.effects || []).map(function(eff) {
-      return {
-        type: eff.type, visible: eff.visible !== false, blendMode: eff.blendMode || 'NORMAL',
-        color: eff.color || { r: 0, g: 0, b: 0, a: 0.1 },
-        offset: eff.offset || { x: 0, y: 2 },
-        radius: typeof eff.radius === 'number' ? eff.radius : 4,
-        spread: typeof eff.spread === 'number' ? eff.spread : 0,
-      };
-    });
-    try { if (cleanEffects.length > 0) card.effects = cleanEffects; } catch(e) {}
     frame.appendChild(card);
+    // Apply effect style directly (node must be in document tree first)
+    try {
+      card.effectStyleId = style.id;
+    } catch(e) {
+      // Fallback: copy raw effect values
+      var cleanEffects = (style.effects || []).map(function(eff) {
+        return {
+          type: eff.type, visible: eff.visible !== false, blendMode: eff.blendMode || 'NORMAL',
+          color: eff.color || { r: 0, g: 0, b: 0, a: 0.1 },
+          offset: eff.offset || { x: 0, y: 2 },
+          radius: typeof eff.radius === 'number' ? eff.radius : 4,
+          spread: typeof eff.spread === 'number' ? eff.spread : 0,
+        };
+      });
+      try { if (cleanEffects.length > 0) card.effects = cleanEffects; } catch(e2) {}
+    }
 
     var shortName = style.name.split('/').pop() || style.name;
     _ssTxt(frame, shortName, cx, y + CARD_H + 8, 8, 'Medium', '#333333');
