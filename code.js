@@ -1158,15 +1158,15 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, labelY, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — apply exact Figma text style (no size cap — would break the style link)
+    // Example — set font/size explicitly first (guaranteed visual), then link style
     try {
       var fn = style.fontName || { family: 'Inter', style: 'Regular' };
       await figma.loadFontAsync(fn);
       var pv = figma.createText();
+      pv.fontName = fn;                    // must be set before characters
       pv.characters = 'Aa';
-      try { pv.textStyleId = style.id; } catch(e2) {
-        try { pv.fontName = fn; } catch(e3) {}
-      }
+      pv.fontSize = style.fontSize || 16;  // explicit size so it's never 12px default
+      try { pv.textStyleId = style.id; } catch(e2) {}  // best-effort style link
       var pvSz = pv.fontSize || style.fontSize || 16;
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y + Math.round((rowH - pvSz) / 2);
