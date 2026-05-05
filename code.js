@@ -1147,37 +1147,33 @@ async function ssTypography(page, xOff, cfg) {
     // font-family
     var famLabel = (style.fontName && style.fontName.family) ? style.fontName.family : '—';
 
-    var cx = PAD;
-    _ssTxt(frame, cat + ' / ' + variant, cx, y + 11, 9, 'Regular', '#333333'); cx += COL_NAME + COL_GAP;
-    _ssTxt(frame, famLabel,              cx, y + 11, 9, 'Regular', '#777777'); cx += COL_FAM  + COL_GAP;
-    _ssTxt(frame, style.fontSize + 'px', cx, y + 11, 9, 'Regular', '#777777'); cx += COL_SIZE + COL_GAP;
-    _ssTxt(frame, lhStr,                 cx, y + 11, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
-    _ssTxt(frame, wtLabel,               cx, y + 11, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
+    // Row height adapts to the actual font size so headings aren't clipped
+    var rowH = Math.max(ROW_H, style.fontSize + 12);
+    var labelY = y + Math.round((rowH - 9) / 2);
 
-    // Example — characters must exist before textStyleId can be applied
+    var cx = PAD;
+    _ssTxt(frame, cat + ' / ' + variant, cx, labelY, 9, 'Regular', '#333333'); cx += COL_NAME + COL_GAP;
+    _ssTxt(frame, famLabel,              cx, labelY, 9, 'Regular', '#777777'); cx += COL_FAM  + COL_GAP;
+    _ssTxt(frame, style.fontSize + 'px', cx, labelY, 9, 'Regular', '#777777'); cx += COL_SIZE + COL_GAP;
+    _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
+    _ssTxt(frame, wtLabel,               cx, labelY, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
+
+    // Example — apply exact Figma text style (no size cap — would break the style link)
     try {
       var fn = style.fontName || { family: 'Inter', style: 'Regular' };
       await figma.loadFontAsync(fn);
       var pv = figma.createText();
-      // Write characters first using Inter Regular (pre-loaded); then apply style
       pv.characters = 'Aa';
-      // Now the node is non-empty — textStyleId can link to the character range
-      var styleLinked = false;
-      try { pv.textStyleId = style.id; styleLinked = true; } catch(e2) {}
-      if (!styleLinked) {
-        // Fallback: manually match font and size from the style
-        try { pv.fontName = fn; } catch(e2) {}
-        try { pv.fontSize = Math.min(style.fontSize || 16, 28); } catch(e2) {}
-      } else if (pv.fontSize > 28) {
-        // Style is linked but oversized — use range override to cap size
-        try { pv.setRangeFontSize(0, 2, 28); } catch(e2) {}
+      try { pv.textStyleId = style.id; } catch(e2) {
+        try { pv.fontName = fn; } catch(e3) {}
       }
+      var pvSz = pv.fontSize || style.fontSize || 16;
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
-      pv.x = cx; pv.y = y + 4;
+      pv.x = cx; pv.y = y + Math.round((rowH - pvSz) / 2);
       frame.appendChild(pv);
     } catch(e) {}
 
-    y += ROW_H;
+    y += rowH;
   }
 
   frame.resize(frameW, y + PAD);
