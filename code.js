@@ -1229,11 +1229,19 @@ async function ssRadius(page, xOff, cfg) {
     var rect = figma.createRectangle();
     rect.resize(CARD, CARD);
     rect.x = rx; rect.y = y;
-    rect.cornerRadius = Math.min(val, CARD / 2);
+    rect.cornerRadius = Math.min(val, CARD / 2);  // fallback visual
     rect.fills = [{ type: 'SOLID', color: _ssRgb('#EBF0FF') }];
     rect.strokes = [{ type: 'SOLID', color: _ssRgb('#BDCBFF') }];
     rect.strokeWeight = 1;
     frame.appendChild(rect);
+    // Bind corner radius to the variable so it updates when tokens change
+    try {
+      var rdAlias = figma.variables.createVariableAlias(rv);
+      rect.setBoundVariable('topLeftRadius', rdAlias);
+      rect.setBoundVariable('topRightRadius', rdAlias);
+      rect.setBoundVariable('bottomLeftRadius', rdAlias);
+      rect.setBoundVariable('bottomRightRadius', rdAlias);
+    } catch(e) {}
 
     var shortName = rv.name.replace('radius/', '');
     _ssTxt(frame, shortName, rx, y + CARD + 6, 8, 'Regular', '#666666');
