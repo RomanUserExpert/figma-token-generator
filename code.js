@@ -1158,13 +1158,16 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, labelY, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — apply the Figma text style directly
+    // Example — write characters first (node must be non-empty for textStyleId to work)
     try {
-      await figma.loadFontAsync(style.fontName);
+      var fn = style.fontName || { family: 'Inter', style: 'Regular' };
+      await figma.loadFontAsync(fn);
       var pv = figma.createText();
-      pv.textStyleId = style.id;
+      pv.fontName = fn;
       pv.characters = 'Aa';
-      var pvSz = pv.fontSize || 16;
+      pv.fontSize = style.fontSize || 16;
+      try { pv.textStyleId = style.id; } catch(e2) {}
+      var pvSz = pv.fontSize || style.fontSize || 16;
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y + Math.round((rowH - pvSz) / 2);
       frame.appendChild(pv);
