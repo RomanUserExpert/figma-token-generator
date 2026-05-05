@@ -950,7 +950,7 @@ async function ssColors(page, xOff, cfg) {
         var pts2 = sv2.name.split('/');
         var stepLabel = (pts2[1] || '') + '/' + (pts2[2] || '');
 
-        _ssTxt(frame, stepLabel, sx2, y,      9, 'Regular', colorHdrCol);
+        _ssTxt(frame, stepLabel, sx2, y,      9, 'Medium', colorHdrCol);
         var hexStr = (val2 && typeof val2.r === 'number') ? 'hex ' + _ssToHex(val2).toUpperCase() : '—';
         _ssTxt(frame, hexStr,    sx2, y + 13, 9, 'Regular', metaCol);
         var rgbStr = (val2 && typeof val2.r === 'number')
@@ -1063,7 +1063,7 @@ async function ssSpacing(page, xOff, cfg) {
     var val = sv.valuesByMode[modeId] || 0;
     var barW = maxVal > 0 ? Math.max(2, Math.round(val / maxVal * MAX_BAR)) : 2;
 
-    _ssTxt(frame, sv.name, PAD, y, 9, 'Regular', '#333333');
+    _ssTxt(frame, sv.name, PAD, y, 9, 'Medium', '#333333');
     _ssTxt(frame, val + 'px', PAD + NAME_W, y, 9, 'Regular', '#777777');
 
     var bar = figma.createRectangle();
@@ -1160,7 +1160,7 @@ async function ssTypography(page, xOff, cfg) {
     var labelY = y + Math.round((rowH - 9) / 2);
 
     var cx = PAD;
-    _ssTxt(frame, cat + ' / ' + variant, cx, labelY, 9, 'Regular', '#333333'); cx += COL_NAME + COL_GAP;
+    _ssTxt(frame, cat + ' / ' + variant, cx, labelY, 9, 'Medium', '#333333'); cx += COL_NAME + COL_GAP;
     _ssTxt(frame, famLabel,              cx, labelY, 9, 'Regular', '#777777'); cx += COL_FAM  + COL_GAP;
     _ssTxt(frame, style.fontSize + 'px', cx, labelY, 9, 'Regular', '#777777'); cx += COL_SIZE + COL_GAP;
     _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
@@ -1290,7 +1290,7 @@ async function ssElevation(page, xOff) {
     frame.appendChild(card);
 
     var shortName = style.name.split('/').pop() || style.name;
-    _ssTxt(frame, shortName, cx, y + CARD_H + 8, 8, 'Regular', '#666666');
+    _ssTxt(frame, shortName, cx, y + CARD_H + 8, 8, 'Medium', '#333333');
   }
 
   frame.resize(frameW, y + CARD_H + 28 + PAD);
