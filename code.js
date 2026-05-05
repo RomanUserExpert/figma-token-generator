@@ -743,6 +743,7 @@ async function generateStylesheet(modules, moduleConfigs) {
 
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch(e) {}
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Medium' }); } catch(e) {}
+  try { await figma.loadFontAsync({ family: 'Inter', style: 'Semi Bold' }); } catch(e) {}
 
   var x = 40;
   var f;
@@ -1244,7 +1245,7 @@ async function ssRadius(page, xOff, cfg) {
     } catch(e) {}
 
     var shortName = rv.name.replace('radius/', '');
-    _ssTxt(frame, shortName, rx, y + CARD + 6, 8, 'Regular', '#333333');
+    _ssTxt(frame, shortName, rx, y + CARD + 6, 8, 'Semi Bold', '#333333');
     _ssTxt(frame, val >= 9000 ? '∞' : val + 'px', rx, y + CARD + 18, 8, 'Regular', '#999999');
   }
 
