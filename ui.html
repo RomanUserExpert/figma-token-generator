@@ -300,9 +300,10 @@ function validateColor(hex, colorKey) {
 
 function adjustColor(hex, colorKey) {
   const { h, s, l } = hexToHsl(hex);
-  if (l > 65) return hslToHex(h, Math.max(s, 65), 45);
-  if (l < 22) return hslToHex(h, Math.max(s, 65), 52);
-  if (s < (colorKey === 'Neutral' ? NEUTRAL_PALE_S : 15)) return hslToHex(h, 50, l);
+  const paleThresh = colorKey === 'Neutral' ? NEUTRAL_PALE_S : 15;
+  if (l > 65) return hslToHex(h, s < paleThresh ? Math.max(s, 50) : s, 45);
+  if (l < 22) return hslToHex(h, s < paleThresh ? Math.max(s, 50) : s, 52);
+  if (s < paleThresh) return hslToHex(h, 50, l);
   return hex;
 }
 
@@ -346,9 +347,9 @@ function ColorFieldRow({ label, colorKey, colors, setColors, editable, onLabelCh
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', gap: 6,
         height: 28, background: '#252525', borderRadius: 4,
-        border: `1px solid ${foc ? accent : '#333'}`,
+        border: `1px solid ${foc ? accent : warning ? 'rgba(245,158,11,0.55)' : '#333'}`,
         padding: '0 8px',
-        boxShadow: foc ? `0 0 0 2px rgba(61,120,255,0.2)` : 'none',
+        boxShadow: foc ? `0 0 0 2px rgba(61,120,255,0.2)` : warning ? '0 0 0 2px rgba(245,158,11,0.12)' : 'none',
         transition: 'border-color 0.15s, box-shadow 0.15s'
       }}>
         <div onClick={() => pickerRef.current.click()} style={{
