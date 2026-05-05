@@ -727,6 +727,7 @@ async function generateStylesheet(modules, moduleConfigs) {
       if (_pages[pi].name === 'Token Stylesheet') { page = _pages[pi]; break; }
     }
     if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
+    figma.currentPage = page;  // textStyleId requires node to be on the current page
   } catch(e) { throw new Error('sheet-page: ' + e.message); }
 
   // Clear children: snapshot count first so re-reading page.children mid-loop can't throw
