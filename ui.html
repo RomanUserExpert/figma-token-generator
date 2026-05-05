@@ -846,7 +846,7 @@ const MODULE_CONFIGS = {
 
 function TokenStudio({ activeModule, sharedColors, setSharedColors, sharedModuleConfigs, setSharedModuleConfigs }) {
   const [colors, setColorsInner] = useState(sharedColors || {
-    Neutral: '#6B7280', Brand: '#3D78FF', Info: '#0686D4',
+    Neutral: '#6B7280', Brand: '#7C3AED', Info: '#0686D4',
     Error: '#EF4444', Success: '#22C55E', Warning: '#F59E0B',
   });
   const setColors = useCallback((updater) => {
@@ -1256,7 +1256,7 @@ function SidebarApp() {
 function PluginApp() {
   const [activeModule] = useSharedNav();
   const [colors, setColors] = React.useState({
-    Neutral: '#6B7280', Brand: '#3D78FF', Info: '#0686D4',
+    Neutral: '#6B7280', Brand: '#7C3AED', Info: '#0686D4',
     Error: '#EF4444', Success: '#22C55E', Warning: '#F59E0B',
   });
   const [moduleConfigs, setModuleConfigs] = React.useState({});
