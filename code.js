@@ -1076,11 +1076,14 @@ async function ssSpacing(page, xOff, cfg) {
 
 async function ssTypography(page, xOff, cfg) {
   var PAD = 32;
-  var COL_NAME = 120, COL_SIZE = 48, COL_LH = 80, COL_WT = 128, COL_FAM = 96, COL_PREV = 120, COL_GAP = 16;
+  // Column order: style | font-family | font-size | line-height | font-weight | example
+  var COL_NAME = 120, COL_FAM = 96, COL_SIZE = 52, COL_LH = 72, COL_WT = 128, COL_PREV = 120, COL_GAP = 16;
   var ROW_H = 36;
   var WT_MAP = {
-    'Thin':100,'Extra Light':200,'Light':300,'Regular':400,
-    'Medium':500,'Semi Bold':600,'Bold':700,'Extra Bold':800,'Black':900,
+    'Thin':100, 'ExtraLight':200, 'Extra Light':200,
+    'Light':300, 'Regular':400, 'Medium':500,
+    'SemiBold':600, 'Semi Bold':600,
+    'Bold':700, 'ExtraBold':800, 'Extra Bold':800, 'Black':900,
   };
 
   var styles = (await figma.getLocalTextStylesAsync()) || [];
@@ -1094,7 +1097,7 @@ async function ssTypography(page, xOff, cfg) {
     return a.name.localeCompare(b.name);
   });
 
-  var innerW = COL_NAME + COL_GAP + COL_SIZE + COL_GAP + COL_LH + COL_GAP + COL_WT + COL_GAP + COL_FAM + COL_GAP + COL_PREV;
+  var innerW = COL_NAME + COL_GAP + COL_FAM + COL_GAP + COL_SIZE + COL_GAP + COL_LH + COL_GAP + COL_WT + COL_GAP + COL_PREV;
   var frameW = PAD + innerW + PAD;
   var frame = _ssShell(page, 'Typography', xOff);
   var y = PAD;
@@ -1102,14 +1105,14 @@ async function ssTypography(page, xOff, cfg) {
   _ssTxt(frame, 'Typography', PAD, y, 24, 'Medium', '#1A1A1A');
   y += 44;
 
-  // Header row
+  // Header row — CSS property names
   var hx = PAD;
-  _ssTxt(frame, 'Style',       hx, y, 9, 'Medium', '#777777'); hx += COL_NAME + COL_GAP;
-  _ssTxt(frame, 'Size',        hx, y, 9, 'Medium', '#777777'); hx += COL_SIZE + COL_GAP;
-  _ssTxt(frame, 'Line Height', hx, y, 9, 'Medium', '#777777'); hx += COL_LH   + COL_GAP;
-  _ssTxt(frame, 'Weight',      hx, y, 9, 'Medium', '#777777'); hx += COL_WT   + COL_GAP;
-  _ssTxt(frame, 'Family',      hx, y, 9, 'Medium', '#777777'); hx += COL_FAM  + COL_GAP;
-  _ssTxt(frame, 'Example',     hx, y, 9, 'Medium', '#777777');
+  _ssTxt(frame, 'style',       hx, y, 9, 'Medium', '#444444'); hx += COL_NAME + COL_GAP;
+  _ssTxt(frame, 'font-family', hx, y, 9, 'Medium', '#444444'); hx += COL_FAM  + COL_GAP;
+  _ssTxt(frame, 'font-size',   hx, y, 9, 'Medium', '#444444'); hx += COL_SIZE + COL_GAP;
+  _ssTxt(frame, 'line-height', hx, y, 9, 'Medium', '#444444'); hx += COL_LH   + COL_GAP;
+  _ssTxt(frame, 'font-weight', hx, y, 9, 'Medium', '#444444'); hx += COL_WT   + COL_GAP;
+  _ssTxt(frame, 'example',     hx, y, 9, 'Medium', '#444444');
   y += 20;
   _ssDivider(frame, PAD, y, innerW);
   y += 8;
@@ -1126,7 +1129,7 @@ async function ssTypography(page, xOff, cfg) {
     }
     prevCat = cat;
 
-    // Line height
+    // line-height
     var lhStr = '—';
     if (style.lineHeight) {
       if (style.lineHeight.unit === 'PERCENT') {
@@ -1136,27 +1139,29 @@ async function ssTypography(page, xOff, cfg) {
       }
     }
 
-    // Weight: "Semi Bold / 600"
+    // font-weight: "Semi Bold / 600"
     var wtName  = (style.fontName && style.fontName.style) ? style.fontName.style : '—';
     var wtNum   = WT_MAP[wtName];
     var wtLabel = wtNum ? wtName + ' / ' + wtNum : wtName;
 
-    // Family
+    // font-family
     var famLabel = (style.fontName && style.fontName.family) ? style.fontName.family : '—';
 
     var cx = PAD;
-    _ssTxt(frame, cat + ' / ' + variant, cx, y + 11, 9, 'Regular', '#555555'); cx += COL_NAME + COL_GAP;
+    _ssTxt(frame, cat + ' / ' + variant, cx, y + 11, 9, 'Regular', '#333333'); cx += COL_NAME + COL_GAP;
+    _ssTxt(frame, famLabel,              cx, y + 11, 9, 'Regular', '#777777'); cx += COL_FAM  + COL_GAP;
     _ssTxt(frame, style.fontSize + 'px', cx, y + 11, 9, 'Regular', '#777777'); cx += COL_SIZE + COL_GAP;
     _ssTxt(frame, lhStr,                 cx, y + 11, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, y + 11, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
-    _ssTxt(frame, famLabel,              cx, y + 11, 9, 'Regular', '#777777'); cx += COL_FAM  + COL_GAP;
 
+    // Example — link to text style, then cap size
     try {
       if (style.fontName) await figma.loadFontAsync(style.fontName);
       var pv = figma.createText();
-      pv.characters = 'Aa';
-      pv.fontSize = Math.min(style.fontSize, 28);
       pv.fontName = style.fontName || { family: 'Inter', style: 'Regular' };
+      try { pv.textStyleId = style.id; } catch(e) {}
+      pv.characters = 'Aa';
+      if (pv.fontSize > 28) pv.fontSize = 28;
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y + 4;
       frame.appendChild(pv);
