@@ -744,10 +744,7 @@ async function generateStylesheet(modules, moduleConfigs) {
   var f;
 
   if (modules['Colors']) {
-    try { f = await ssColors(page, x, moduleConfigs['Colors'] || {}); if (f) x += f.width + 40; } catch(e) {}
-    if ((moduleConfigs['Colors'] || {}).semanticOn) {
-      try { f = await ssSemantics(page, x, moduleConfigs['Colors'] || {}); if (f) x += f.width + 40; } catch(e) {}
-    }
+    try { var cr = await ssColors(page, x, moduleConfigs['Colors'] || {}); if (cr) x += cr.totalWidth + 40; } catch(e) {}
   }
   if (modules['Spacing']) {
     try { f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {}); if (f) x += f.width + 40; } catch(e) {}
@@ -801,147 +798,186 @@ function _ssDivider(parent, x, y, w) {
   parent.appendChild(d);
 }
 
-// ── colors ────────────────────────────────────────────────────────────────────
+// ── colors (light + dark frames, each with primitives + semantics) ─────────────
 
 async function ssColors(page, xOff, cfg) {
   var SW = 44, GAP = 6, PAD = 32, LABEL_W = 80;
-  var collName = cfg.collection || 'Primitives';
+  var SEM_SW = 16, SEM_LABEL_W = 220;
+  var darkEnabled = cfg.darkModeOn || false;
+  var semanticOn  = cfg.semanticOn  || false;
+  var collName     = cfg.collection         || 'Primitives';
+  var darkCollName = collName + ' Dark';
+  var semName      = cfg.semanticCollection || 'Semantics';
 
   var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
-  var primColl = null;
+  var primColl = null, darkPrimColl = null, semColl = null;
   for (var i = 0; i < collections.length; i++) {
-    if (collections[i].name === collName) { primColl = collections[i]; break; }
+    if (collections[i].name === collName)     primColl     = collections[i];
+    if (collections[i].name === darkCollName) darkPrimColl = collections[i];
+    if (collections[i].name === semName)      semColl      = collections[i];
   }
   if (!primColl) return null;
 
-  var allVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
-  var primVars = allVars.filter(function(v) {
-    return v.variableCollectionId === primColl.id && v.name.startsWith('color/');
-  });
+  var allColorVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
 
-  var groups = {};
-  for (var vi = 0; vi < primVars.length; vi++) {
-    var pts = primVars[vi].name.split('/');
-    if (pts.length < 3) continue;
-    if (!groups[pts[1]]) groups[pts[1]] = [];
-    groups[pts[1]].push(primVars[vi]);
-  }
-  var cNames = Object.keys(groups);
-  cNames.forEach(function(n) {
-    groups[n].sort(function(a, b) {
-      return (parseInt(a.name.split('/')[2]) || 0) - (parseInt(b.name.split('/')[2]) || 0);
+  function getPrimVars(coll) {
+    return allColorVars.filter(function(v) {
+      return v.variableCollectionId === coll.id && v.name.startsWith('color/');
     });
-  });
+  }
 
-  var maxN = cNames.reduce(function(m, n) { return Math.max(m, groups[n].length); }, 0);
-  var frameW = PAD + LABEL_W + maxN * (SW + GAP) - GAP + PAD;
-  var modeId = primColl.modes[0].modeId;
-  var frame = _ssShell(page, 'Colors', xOff);
-  var y = PAD;
-
-  _ssTxt(frame, 'Colors', PAD, y, 13, 'Medium', '#1A1A1A');
-  y += 32;
-
-  for (var ci = 0; ci < cNames.length; ci++) {
-    var cn = cNames[ci];
-    var shades = groups[cn];
-    _ssTxt(frame, cn.charAt(0).toUpperCase() + cn.slice(1), PAD, y + 14, 10, 'Medium', '#888888');
-
-    for (var si = 0; si < shades.length; si++) {
-      var sv = shades[si];
-      var val = sv.valuesByMode[modeId];
-      var rx = PAD + LABEL_W + si * (SW + GAP);
-
-      var rect = figma.createRectangle();
-      rect.resize(SW, SW);
-      rect.x = rx; rect.y = y;
-      rect.cornerRadius = 4;
-      var fillColor = (val && typeof val.r === 'number') ? { r: val.r, g: val.g, b: val.b } : { r: 0.85, g: 0.85, b: 0.85 };
-      rect.fills = [{ type: 'SOLID', color: fillColor,
-        boundVariables: { color: figma.variables.createVariableAlias(sv) } }];
-      frame.appendChild(rect);
-
-      var sl = figma.createText();
-      sl.characters = sv.name.split('/')[2] || '';
-      sl.fontSize = 8;
-      sl.fontName = { family: 'Inter', style: 'Regular' };
-      sl.fills = [{ type: 'SOLID', color: { r: 0.7, g: 0.7, b: 0.7 } }];
-      sl.x = rx; sl.y = y + SW + 3;
-      sl.textAlignHorizontal = 'CENTER';
-      sl.resize(SW, 12);
-      frame.appendChild(sl);
+  function groupAndSort(vars) {
+    var g = {}, names = [];
+    for (var vi = 0; vi < vars.length; vi++) {
+      var pts = vars[vi].name.split('/');
+      if (pts.length < 3) continue;
+      if (!g[pts[1]]) { g[pts[1]] = []; names.push(pts[1]); }
+      g[pts[1]].push(vars[vi]);
     }
-    y += SW + 24 + 8;
+    names.forEach(function(n) {
+      g[n].sort(function(a, b) {
+        return (parseInt(a.name.split('/')[2]) || 0) - (parseInt(b.name.split('/')[2]) || 0);
+      });
+    });
+    return { groups: g, cNames: names };
   }
 
-  frame.resize(frameW, y + PAD - 8);
-  return frame;
-}
+  var lightData = groupAndSort(getPrimVars(primColl));
+  var darkData  = (darkEnabled && darkPrimColl) ? groupAndSort(getPrimVars(darkPrimColl)) : null;
 
-// ── semantic tokens ───────────────────────────────────────────────────────────
-
-async function ssSemantics(page, xOff, cfg) {
-  var PAD = 32, SW = 16, LABEL_W = 220;
-  var semName = cfg.semanticCollection || 'Semantics';
-
-  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
-  var semColl = null;
-  for (var i = 0; i < collections.length; i++) {
-    if (collections[i].name === semName) { semColl = collections[i]; break; }
+  // ── semantic setup ──
+  var semVars = [], semLightId = null, semDarkId = null;
+  var semGroups = {}, semPrefixes = [];
+  if (semanticOn && semColl) {
+    semLightId = semColl.modes[0].modeId;
+    semDarkId  = semColl.modes.length > 1 ? semColl.modes[1].modeId : null;
+    semVars = allColorVars.filter(function(v) { return v.variableCollectionId === semColl.id; });
+    var groupOrder = ['bg', 'surface', 'text', 'icon', 'border', 'action'];
+    for (var vi = 0; vi < semVars.length; vi++) {
+      var pref = semVars[vi].name.split('/')[0];
+      if (!semGroups[pref]) semGroups[pref] = [];
+      semGroups[pref].push(semVars[vi]);
+    }
+    semPrefixes = groupOrder.filter(function(k) { return semGroups[k]; });
+    Object.keys(semGroups).forEach(function(k) { if (semPrefixes.indexOf(k) === -1) semPrefixes.push(k); });
   }
-  if (!semColl) return null;
 
-  var allVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
-  var semVars = allVars.filter(function(v) { return v.variableCollectionId === semColl.id; });
-  if (semVars.length === 0) return null;
+  // ── frame width ──
+  var maxN = lightData.cNames.reduce(function(m, n) { return Math.max(m, lightData.groups[n].length); }, 0);
+  var primInnerW = LABEL_W + Math.max(0, maxN * (SW + GAP) - GAP);
+  var semInnerW  = SEM_SW + 8 + SEM_LABEL_W;
+  var innerW     = Math.max(primInnerW, semInnerW);
+  var frameW     = PAD + innerW + PAD;
 
-  var semLightId = semColl.modes[0].modeId;
-  var groupOrder = ['bg', 'surface', 'text', 'icon', 'border', 'action'];
-  var groups = {};
-  for (var vi = 0; vi < semVars.length; vi++) {
-    var prefix = semVars[vi].name.split('/')[0];
-    if (!groups[prefix]) groups[prefix] = [];
-    groups[prefix].push(semVars[vi]);
-  }
-  var prefixes = groupOrder.filter(function(k) { return groups[k]; });
-  Object.keys(groups).forEach(function(k) { if (prefixes.indexOf(k) === -1) prefixes.push(k); });
+  async function buildColorFrame(title, xPos, isDark, primData, primCollRef) {
+    var frame = _ssShell(page, title, xPos);
+    frame.fills = [{ type: 'SOLID', color: isDark ? { r: 0.08, g: 0.08, b: 0.08 } : { r: 1, g: 1, b: 1 } }];
 
-  var frameW = PAD + SW + 8 + LABEL_W + PAD;
-  var frame = _ssShell(page, 'Semantic Tokens', xOff);
-  var y = PAD;
+    // Apply dark variable mode so semantic aliases resolve to dark-mode values
+    if (isDark && semColl && semDarkId) {
+      try { frame.setExplicitVariableModeForCollection(semColl, semDarkId); } catch(e) {}
+    }
 
-  _ssTxt(frame, 'Semantic Tokens', PAD, y, 13, 'Medium', '#1A1A1A');
-  y += 32;
+    var modeId      = primCollRef.modes[0].modeId;
+    var titleCol    = isDark ? '#CCCCCC' : '#1A1A1A';
+    var sectionCol  = isDark ? '#555555' : '#AAAAAA';
+    var colorLblCol = isDark ? '#666666' : '#888888';
+    var semLblCol   = isDark ? '#888888' : '#555555';
 
-  for (var gi = 0; gi < prefixes.length; gi++) {
-    var gpref = prefixes[gi];
-    var gvars = groups[gpref];
+    var y = PAD;
+    _ssTxt(frame, title, PAD, y, 13, 'Medium', titleCol);
+    y += 32;
 
-    if (gi > 0) { _ssDivider(frame, PAD, y, frameW - PAD * 2); y += 12; }
-    _ssTxt(frame, gpref, PAD, y, 9, 'Medium', '#AAAAAA');
+    // Primitives
+    _ssTxt(frame, 'Primitives', PAD, y, 9, 'Medium', sectionCol);
     y += 18;
 
-    for (var gvi = 0; gvi < gvars.length; gvi++) {
-      var gv = gvars[gvi];
-      var gval = gv.valuesByMode[semLightId];
+    for (var ci = 0; ci < primData.cNames.length; ci++) {
+      var cn = primData.cNames[ci];
+      var shades = primData.groups[cn];
+      _ssTxt(frame, cn.charAt(0).toUpperCase() + cn.slice(1), PAD, y + 14, 10, 'Medium', colorLblCol);
 
-      var gr = figma.createRectangle();
-      gr.resize(SW, SW);
-      gr.x = PAD; gr.y = y;
-      gr.cornerRadius = 2;
-      var gFillColor = (gval && typeof gval.r === 'number') ? { r: gval.r, g: gval.g, b: gval.b } : { r: 0.85, g: 0.85, b: 0.85 };
-      gr.fills = [{ type: 'SOLID', color: gFillColor,
-        boundVariables: { color: figma.variables.createVariableAlias(gv) } }];
-      frame.appendChild(gr);
+      for (var si = 0; si < shades.length; si++) {
+        var sv = shades[si];
+        var val = sv.valuesByMode[modeId];
+        var rx = PAD + LABEL_W + si * (SW + GAP);
 
-      _ssTxt(frame, gv.name, PAD + SW + 8, y + 1, 9, 'Regular', '#555555');
-      y += SW + 5;
+        var rect = figma.createRectangle();
+        rect.resize(SW, SW);
+        rect.x = rx; rect.y = y;
+        rect.cornerRadius = 4;
+        var fillClr = (val && typeof val.r === 'number') ? { r: val.r, g: val.g, b: val.b } : { r: 0.5, g: 0.5, b: 0.5 };
+        rect.fills = [{ type: 'SOLID', color: fillClr,
+          boundVariables: { color: figma.variables.createVariableAlias(sv) } }];
+        frame.appendChild(rect);
+
+        var sl = figma.createText();
+        sl.characters = sv.name.split('/')[2] || '';
+        sl.fontSize = 8;
+        sl.fontName = { family: 'Inter', style: 'Regular' };
+        sl.fills = [{ type: 'SOLID', color: isDark ? { r: 0.35, g: 0.35, b: 0.35 } : { r: 0.7, g: 0.7, b: 0.7 } }];
+        sl.x = rx; sl.y = y + SW + 3;
+        sl.textAlignHorizontal = 'CENTER';
+        sl.resize(SW, 12);
+        frame.appendChild(sl);
+      }
+      y += SW + 24 + 8;
     }
-    y += 6;
+
+    // Semantics
+    if (semanticOn && semColl && semVars.length > 0) {
+      var semModeId = (isDark && semDarkId) ? semDarkId : semLightId;
+
+      y += 4;
+      _ssDivider(frame, PAD, y, innerW);
+      y += 16;
+
+      _ssTxt(frame, 'Semantic Tokens', PAD, y, 9, 'Medium', sectionCol);
+      y += 20;
+
+      for (var gi = 0; gi < semPrefixes.length; gi++) {
+        var gpref = semPrefixes[gi];
+        var gvars = semGroups[gpref];
+        if (gi > 0) { _ssDivider(frame, PAD, y, innerW); y += 12; }
+        _ssTxt(frame, gpref, PAD, y, 9, 'Medium', sectionCol);
+        y += 18;
+
+        for (var gvi = 0; gvi < gvars.length; gvi++) {
+          var gv  = gvars[gvi];
+          var gval = gv.valuesByMode[semModeId];
+
+          var gr = figma.createRectangle();
+          gr.resize(SEM_SW, SEM_SW);
+          gr.x = PAD; gr.y = y;
+          gr.cornerRadius = 2;
+          var gFillClr = (gval && typeof gval.r === 'number') ? { r: gval.r, g: gval.g, b: gval.b } : { r: 0.5, g: 0.5, b: 0.5 };
+          gr.fills = [{ type: 'SOLID', color: gFillClr,
+            boundVariables: { color: figma.variables.createVariableAlias(gv) } }];
+          frame.appendChild(gr);
+
+          _ssTxt(frame, gv.name, PAD + SEM_SW + 8, y + 1, 9, 'Regular', semLblCol);
+          y += SEM_SW + 5;
+        }
+        y += 6;
+      }
+    }
+
+    frame.resize(frameW, y + PAD);
+    return frame;
   }
 
-  frame.resize(frameW, y + PAD);
-  return frame;
+  var x = xOff;
+  await buildColorFrame('Colors — Light', x, false, lightData, primColl);
+  x += frameW + 40;
+
+  if (darkEnabled) {
+    var useDarkData = darkData || lightData;
+    var useDarkColl = darkPrimColl || primColl;
+    await buildColorFrame('Colors — Dark', x, true, useDarkData, useDarkColl);
+    x += frameW + 40;
+  }
+
+  return { totalWidth: x - xOff - 40 };
 }
 
 // ── spacing ───────────────────────────────────────────────────────────────────
