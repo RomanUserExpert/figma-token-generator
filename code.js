@@ -1158,16 +1158,18 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, labelY, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — no explicit font overrides so textStyleId links cleanly
+    // Example — debug mode: show actual error so we can diagnose textStyleId failure
     try {
       var fn = style.fontName || { family: 'Inter', style: 'Regular' };
       await figma.loadFontAsync(fn);
       var pv = figma.createText();
-      pv.characters = 'Aa';  // uses Inter Regular default (pre-loaded); no explicit fontName
+      pv.characters = 'Aa';
+      var dbgMsg = null;
       try {
-        pv.textStyleId = style.id;  // applies style with no prior overrides = clean link
+        pv.textStyleId = style.id;
+        if (pv.textStyleId !== style.id) dbgMsg = 'set but mismatch: ' + String(pv.textStyleId).slice(0,20);
       } catch(e2) {
-        // fallback: manual properties if style link fails
+        dbgMsg = String(e2.message || e2).slice(0, 50);
         pv.fontName = fn;
         pv.fontSize = style.fontSize || 16;
       }
@@ -1175,6 +1177,15 @@ async function ssTypography(page, xOff, cfg) {
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y + Math.round((rowH - pvSz) / 2);
       frame.appendChild(pv);
+      if (dbgMsg) {
+        var dbg = figma.createText();
+        dbg.fontName = { family: 'Inter', style: 'Regular' };
+        dbg.characters = dbgMsg;
+        dbg.fontSize = 7;
+        dbg.fills = [{ type: 'SOLID', color: { r: 1, g: 0.2, b: 0.2 } }];
+        dbg.x = cx; dbg.y = y + Math.round((rowH - pvSz) / 2) + pvSz + 2;
+        frame.appendChild(dbg);
+      }
     } catch(e) {}
 
     y += rowH;
