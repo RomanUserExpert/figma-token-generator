@@ -786,23 +786,40 @@ function _ssShell(page, name, xOff) {
   f.resize(200, 200);
   f.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
   f.cornerRadius = 8;
+  f.effects = [{
+    type: 'DROP_SHADOW', visible: true, blendMode: 'NORMAL',
+    color: { r: 0, g: 0, b: 0, a: 0.07 },
+    offset: { x: 0, y: 2 }, radius: 12, spread: 0,
+  }];
   page.appendChild(f);
   return f;
 }
 
-function _ssDivider(parent, x, y, w) {
+function _ssToHex(c) {
+  var r = ('0' + Math.round(c.r * 255).toString(16)).slice(-2);
+  var g = ('0' + Math.round(c.g * 255).toString(16)).slice(-2);
+  var b = ('0' + Math.round(c.b * 255).toString(16)).slice(-2);
+  return '#' + r + g + b;
+}
+
+function _ssDivider(parent, x, y, w, col) {
   var d = figma.createRectangle();
   d.resize(w, 1);
   d.x = x; d.y = y;
-  d.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.9, b: 0.9 } }];
+  d.fills = [{ type: 'SOLID', color: col || { r: 0.9, g: 0.9, b: 0.9 } }];
   parent.appendChild(d);
 }
 
 // ── colors (light + dark frames, each with primitives + semantics) ─────────────
 
 async function ssColors(page, xOff, cfg) {
-  var SW = 44, GAP = 6, PAD = 32, LABEL_W = 80;
-  var SEM_SW = 16, SEM_LABEL_W = 220;
+  var PAD = 32;
+  // Primitive swatch dims
+  var SW_P = 88, SH_P = 56, SW_P_GAP = 6;
+  // Semantic column layout
+  var SEM_SW = 14, SEM_COL_W = 150, SEM_COL_GAP = 16, SEM_ROW_H = 20;
+  var SEM_COLS_ORDER = ['bg', 'surface', 'text', 'icon', 'border', 'action'];
+
   var darkEnabled = cfg.darkModeOn || false;
   var semanticOn  = cfg.semanticOn  || false;
   var collName     = cfg.collection         || 'Primitives';
@@ -847,26 +864,27 @@ async function ssColors(page, xOff, cfg) {
 
   // ── semantic setup ──
   var semVars = [], semLightId = null, semDarkId = null;
-  var semGroups = {}, semPrefixes = [];
+  var semGroups = {};
   if (semanticOn && semColl) {
     semLightId = semColl.modes[0].modeId;
     semDarkId  = semColl.modes.length > 1 ? semColl.modes[1].modeId : null;
     semVars = allColorVars.filter(function(v) { return v.variableCollectionId === semColl.id; });
-    var groupOrder = ['bg', 'surface', 'text', 'icon', 'border', 'action'];
     for (var vi = 0; vi < semVars.length; vi++) {
       var pref = semVars[vi].name.split('/')[0];
       if (!semGroups[pref]) semGroups[pref] = [];
       semGroups[pref].push(semVars[vi]);
     }
-    semPrefixes = groupOrder.filter(function(k) { return semGroups[k]; });
-    Object.keys(semGroups).forEach(function(k) { if (semPrefixes.indexOf(k) === -1) semPrefixes.push(k); });
+    // add any extra prefixes not in default order
+    Object.keys(semGroups).forEach(function(k) {
+      if (SEM_COLS_ORDER.indexOf(k) === -1) SEM_COLS_ORDER.push(k);
+    });
   }
 
   // ── frame width ──
-  var maxN = lightData.cNames.reduce(function(m, n) { return Math.max(m, lightData.groups[n].length); }, 0);
-  var primInnerW = LABEL_W + Math.max(0, maxN * (SW + GAP) - GAP);
-  var semInnerW  = SEM_SW + 8 + SEM_LABEL_W;
-  var innerW     = Math.max(primInnerW, semInnerW);
+  var maxShades = lightData.cNames.reduce(function(m, n) { return Math.max(m, lightData.groups[n].length); }, 0);
+  var primInnerW = Math.max(0, maxShades * (SW_P + SW_P_GAP) - SW_P_GAP);
+  var semInnerW  = SEM_COLS_ORDER.length * (SEM_COL_W + SEM_COL_GAP) - SEM_COL_GAP;
+  var innerW     = Math.max(primInnerW, semanticOn ? semInnerW : 0);
   var frameW     = PAD + innerW + PAD;
 
   async function buildColorFrame(title, xPos, isDark, primData, primCollRef) {
@@ -879,87 +897,108 @@ async function ssColors(page, xOff, cfg) {
     }
 
     var modeId      = primCollRef.modes[0].modeId;
-    var titleCol    = isDark ? '#CCCCCC' : '#1A1A1A';
-    var sectionCol  = isDark ? '#555555' : '#AAAAAA';
-    var colorLblCol = isDark ? '#666666' : '#888888';
-    var semLblCol   = isDark ? '#888888' : '#555555';
+    var titleCol    = isDark ? '#EEEEEE' : '#1A1A1A';
+    var primHdrCol  = isDark ? '#EEEEEE' : '#1A1A1A';
+    var colorHdrCol = isDark ? '#CCCCCC' : '#555555';
+    var metaCol     = isDark ? '#999999' : '#999999';
+    var semHdrCol   = isDark ? '#999999' : '#AAAAAA';
+    var semLblCol   = isDark ? '#CCCCCC' : '#555555';
+    var dividerClr  = isDark ? _ssRgb('#2A2A2A') : _ssRgb('#E8E8E8');
 
     var y = PAD;
-    _ssTxt(frame, title, PAD, y, 13, 'Medium', titleCol);
-    y += 32;
+    _ssTxt(frame, title, PAD, y, 24, 'Medium', titleCol);
+    y += 52;
 
-    // Primitives
-    _ssTxt(frame, 'Primitives', PAD, y, 9, 'Medium', sectionCol);
-    y += 18;
-
+    // ── Primitive swatches ──
     for (var ci = 0; ci < primData.cNames.length; ci++) {
       var cn = primData.cNames[ci];
       var shades = primData.groups[cn];
-      _ssTxt(frame, cn.charAt(0).toUpperCase() + cn.slice(1), PAD, y + 14, 10, 'Medium', colorLblCol);
 
+      _ssTxt(frame, cn.charAt(0).toUpperCase() + cn.slice(1), PAD, y, 11, 'Medium', primHdrCol);
+      y += 20;
+
+      // Swatch row
       for (var si = 0; si < shades.length; si++) {
         var sv = shades[si];
         var val = sv.valuesByMode[modeId];
-        var rx = PAD + LABEL_W + si * (SW + GAP);
+        var fillClr = (val && typeof val.r === 'number') ? { r: val.r, g: val.g, b: val.b } : { r: 0.85, g: 0.85, b: 0.85 };
+        var sx = PAD + si * (SW_P + SW_P_GAP);
 
         var rect = figma.createRectangle();
-        rect.resize(SW, SW);
-        rect.x = rx; rect.y = y;
+        rect.resize(SW_P, SH_P);
+        rect.x = sx; rect.y = y;
         rect.cornerRadius = 4;
-        var fillClr = (val && typeof val.r === 'number') ? { r: val.r, g: val.g, b: val.b } : { r: 0.5, g: 0.5, b: 0.5 };
         rect.fills = [{ type: 'SOLID', color: fillClr,
           boundVariables: { color: figma.variables.createVariableAlias(sv) } }];
         frame.appendChild(rect);
-
-        var sl = figma.createText();
-        sl.characters = sv.name.split('/')[2] || '';
-        sl.fontSize = 8;
-        sl.fontName = { family: 'Inter', style: 'Regular' };
-        sl.fills = [{ type: 'SOLID', color: isDark ? { r: 0.35, g: 0.35, b: 0.35 } : { r: 0.7, g: 0.7, b: 0.7 } }];
-        sl.x = rx; sl.y = y + SW + 3;
-        sl.textAlignHorizontal = 'CENTER';
-        sl.resize(SW, 12);
-        frame.appendChild(sl);
       }
-      y += SW + 24 + 8;
+      y += SH_P + 8;
+
+      // Labels below each swatch: step name / hex / rgb
+      for (var si2 = 0; si2 < shades.length; si2++) {
+        var sv2 = shades[si2];
+        var val2 = sv2.valuesByMode[modeId];
+        var sx2 = PAD + si2 * (SW_P + SW_P_GAP);
+        var pts2 = sv2.name.split('/');
+        var stepLabel = (pts2[1] || '') + '/' + (pts2[2] || '');
+
+        _ssTxt(frame, stepLabel, sx2, y,      9, 'Regular', colorHdrCol);
+        var hexStr = (val2 && typeof val2.r === 'number') ? 'hex ' + _ssToHex(val2).toUpperCase() : '—';
+        _ssTxt(frame, hexStr,    sx2, y + 13, 9, 'Regular', metaCol);
+        var rgbStr = (val2 && typeof val2.r === 'number')
+          ? 'rgb ' + Math.round(val2.r*255) + ', ' + Math.round(val2.g*255) + ', ' + Math.round(val2.b*255)
+          : '—';
+        _ssTxt(frame, rgbStr,    sx2, y + 26, 9, 'Regular', metaCol);
+      }
+      y += 39 + 20; // 3 label rows (13px each) + gap between color groups
     }
 
-    // Semantics
+    // ── Semantic section ──
     if (semanticOn && semColl && semVars.length > 0) {
       var semModeId = (isDark && semDarkId) ? semDarkId : semLightId;
 
       y += 4;
-      _ssDivider(frame, PAD, y, innerW);
-      y += 16;
+      _ssDivider(frame, PAD, y, innerW, dividerClr);
+      y += 24;
 
-      _ssTxt(frame, 'Semantic Tokens', PAD, y, 9, 'Medium', sectionCol);
-      y += 20;
+      _ssTxt(frame, 'Semantic', PAD, y, 11, 'Medium', primHdrCol);
+      y += 28;
 
-      for (var gi = 0; gi < semPrefixes.length; gi++) {
-        var gpref = semPrefixes[gi];
+      var colX = PAD;
+      var colMaxY = y;
+
+      for (var gi = 0; gi < SEM_COLS_ORDER.length; gi++) {
+        var gpref = SEM_COLS_ORDER[gi];
         var gvars = semGroups[gpref];
-        if (gi > 0) { _ssDivider(frame, PAD, y, innerW); y += 12; }
-        _ssTxt(frame, gpref, PAD, y, 9, 'Medium', sectionCol);
-        y += 18;
+        if (!gvars || gvars.length === 0) { colX += SEM_COL_W + SEM_COL_GAP; continue; }
+
+        var cx = colX;
+        var cy = y;
+
+        _ssTxt(frame, gpref, cx, cy, 9, 'Medium', semHdrCol);
+        cy += 18;
 
         for (var gvi = 0; gvi < gvars.length; gvi++) {
           var gv  = gvars[gvi];
           var gval = gv.valuesByMode[semModeId];
+          var gFillClr = (gval && typeof gval.r === 'number') ? { r: gval.r, g: gval.g, b: gval.b } : { r: 0.85, g: 0.85, b: 0.85 };
 
           var gr = figma.createRectangle();
           gr.resize(SEM_SW, SEM_SW);
-          gr.x = PAD; gr.y = y;
+          gr.x = cx; gr.y = cy;
           gr.cornerRadius = 2;
-          var gFillClr = (gval && typeof gval.r === 'number') ? { r: gval.r, g: gval.g, b: gval.b } : { r: 0.5, g: 0.5, b: 0.5 };
           gr.fills = [{ type: 'SOLID', color: gFillClr,
             boundVariables: { color: figma.variables.createVariableAlias(gv) } }];
           frame.appendChild(gr);
 
-          _ssTxt(frame, gv.name, PAD + SEM_SW + 8, y + 1, 9, 'Regular', semLblCol);
-          y += SEM_SW + 5;
+          _ssTxt(frame, gv.name, cx + SEM_SW + 6, cy + 1, 9, 'Regular', semLblCol);
+          cy += SEM_ROW_H;
         }
-        y += 6;
+
+        if (cy > colMaxY) colMaxY = cy;
+        colX += SEM_COL_W + SEM_COL_GAP;
       }
+      y = colMaxY;
     }
 
     frame.resize(frameW, y + PAD);
@@ -1008,16 +1047,16 @@ async function ssSpacing(page, xOff, cfg) {
   var frame = _ssShell(page, 'Spacing', xOff);
   var y = PAD;
 
-  _ssTxt(frame, 'Spacing', PAD, y, 13, 'Medium', '#1A1A1A');
-  y += 32;
+  _ssTxt(frame, 'Spacing', PAD, y, 24, 'Medium', '#1A1A1A');
+  y += 44;
 
   for (var vi = 0; vi < spVars.length; vi++) {
     var sv = spVars[vi];
     var val = sv.valuesByMode[modeId] || 0;
     var barW = maxVal > 0 ? Math.max(2, Math.round(val / maxVal * MAX_BAR)) : 2;
 
-    _ssTxt(frame, sv.name, PAD, y, 9, 'Regular', '#555555');
-    _ssTxt(frame, val + 'px', PAD + NAME_W, y, 9, 'Regular', '#AAAAAA');
+    _ssTxt(frame, sv.name, PAD, y, 9, 'Regular', '#333333');
+    _ssTxt(frame, val + 'px', PAD + NAME_W, y, 9, 'Regular', '#777777');
 
     var bar = figma.createRectangle();
     bar.resize(barW, BAR_H);
@@ -1037,8 +1076,12 @@ async function ssSpacing(page, xOff, cfg) {
 
 async function ssTypography(page, xOff, cfg) {
   var PAD = 32;
-  var COL_NAME = 140, COL_SIZE = 48, COL_WT = 88, COL_PREV = 140, COL_GAP = 16;
+  var COL_NAME = 120, COL_SIZE = 48, COL_LH = 80, COL_WT = 128, COL_FAM = 96, COL_PREV = 120, COL_GAP = 16;
   var ROW_H = 36;
+  var WT_MAP = {
+    'Thin':100,'Extra Light':200,'Light':300,'Regular':400,
+    'Medium':500,'Semi Bold':600,'Bold':700,'Extra Bold':800,'Black':900,
+  };
 
   var styles = (await figma.getLocalTextStylesAsync()) || [];
   if (styles.length === 0) return null;
@@ -1051,21 +1094,24 @@ async function ssTypography(page, xOff, cfg) {
     return a.name.localeCompare(b.name);
   });
 
-  var frameW = PAD + COL_NAME + COL_GAP + COL_SIZE + COL_GAP + COL_WT + COL_GAP + COL_PREV + PAD;
+  var innerW = COL_NAME + COL_GAP + COL_SIZE + COL_GAP + COL_LH + COL_GAP + COL_WT + COL_GAP + COL_FAM + COL_GAP + COL_PREV;
+  var frameW = PAD + innerW + PAD;
   var frame = _ssShell(page, 'Typography', xOff);
   var y = PAD;
 
-  _ssTxt(frame, 'Typography', PAD, y, 13, 'Medium', '#1A1A1A');
-  y += 32;
+  _ssTxt(frame, 'Typography', PAD, y, 24, 'Medium', '#1A1A1A');
+  y += 44;
 
-  // Header
+  // Header row
   var hx = PAD;
-  _ssTxt(frame, 'Style',   hx, y, 9, 'Medium', '#AAAAAA'); hx += COL_NAME + COL_GAP;
-  _ssTxt(frame, 'Size',    hx, y, 9, 'Medium', '#AAAAAA'); hx += COL_SIZE + COL_GAP;
-  _ssTxt(frame, 'Weight',  hx, y, 9, 'Medium', '#AAAAAA'); hx += COL_WT   + COL_GAP;
-  _ssTxt(frame, 'Preview', hx, y, 9, 'Medium', '#AAAAAA');
+  _ssTxt(frame, 'Style',       hx, y, 9, 'Medium', '#777777'); hx += COL_NAME + COL_GAP;
+  _ssTxt(frame, 'Size',        hx, y, 9, 'Medium', '#777777'); hx += COL_SIZE + COL_GAP;
+  _ssTxt(frame, 'Line Height', hx, y, 9, 'Medium', '#777777'); hx += COL_LH   + COL_GAP;
+  _ssTxt(frame, 'Weight',      hx, y, 9, 'Medium', '#777777'); hx += COL_WT   + COL_GAP;
+  _ssTxt(frame, 'Family',      hx, y, 9, 'Medium', '#777777'); hx += COL_FAM  + COL_GAP;
+  _ssTxt(frame, 'Example',     hx, y, 9, 'Medium', '#777777');
   y += 20;
-  _ssDivider(frame, PAD, y, frameW - PAD * 2);
+  _ssDivider(frame, PAD, y, innerW);
   y += 8;
 
   var prevCat = null;
@@ -1075,19 +1121,35 @@ async function ssTypography(page, xOff, cfg) {
     var cat = parts[0], variant = parts[1] || '';
 
     if (prevCat !== null && cat !== prevCat) {
-      _ssDivider(frame, PAD, y + 4, frameW - PAD * 2);
+      _ssDivider(frame, PAD, y + 4, innerW);
       y += 10;
     }
     prevCat = cat;
 
+    // Line height
+    var lhStr = '—';
+    if (style.lineHeight) {
+      if (style.lineHeight.unit === 'PERCENT') {
+        lhStr = Math.round(style.fontSize * style.lineHeight.value / 100) + 'px';
+      } else if (style.lineHeight.unit === 'PIXELS') {
+        lhStr = Math.round(style.lineHeight.value) + 'px';
+      }
+    }
+
+    // Weight: "Semi Bold / 600"
+    var wtName  = (style.fontName && style.fontName.style) ? style.fontName.style : '—';
+    var wtNum   = WT_MAP[wtName];
+    var wtLabel = wtNum ? wtName + ' / ' + wtNum : wtName;
+
+    // Family
+    var famLabel = (style.fontName && style.fontName.family) ? style.fontName.family : '—';
+
     var cx = PAD;
-    _ssTxt(frame, cat + ' / ' + variant, cx, y + 11, 9, 'Regular', '#888888');
-    cx += COL_NAME + COL_GAP;
-    _ssTxt(frame, style.fontSize + 'px', cx, y + 11, 9, 'Regular', '#AAAAAA');
-    cx += COL_SIZE + COL_GAP;
-    var wtLabel = style.fontName ? style.fontName.style : '—';
-    _ssTxt(frame, wtLabel, cx, y + 11, 9, 'Regular', '#AAAAAA');
-    cx += COL_WT + COL_GAP;
+    _ssTxt(frame, cat + ' / ' + variant, cx, y + 11, 9, 'Regular', '#555555'); cx += COL_NAME + COL_GAP;
+    _ssTxt(frame, style.fontSize + 'px', cx, y + 11, 9, 'Regular', '#777777'); cx += COL_SIZE + COL_GAP;
+    _ssTxt(frame, lhStr,                 cx, y + 11, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
+    _ssTxt(frame, wtLabel,               cx, y + 11, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
+    _ssTxt(frame, famLabel,              cx, y + 11, 9, 'Regular', '#777777'); cx += COL_FAM  + COL_GAP;
 
     try {
       if (style.fontName) await figma.loadFontAsync(style.fontName);
@@ -1134,8 +1196,8 @@ async function ssRadius(page, xOff, cfg) {
   var frame = _ssShell(page, 'Border Radius', xOff);
   var y = PAD;
 
-  _ssTxt(frame, 'Border Radius', PAD, y, 13, 'Medium', '#1A1A1A');
-  y += 32;
+  _ssTxt(frame, 'Border Radius', PAD, y, 24, 'Medium', '#1A1A1A');
+  y += 44;
 
   for (var vi = 0; vi < rdVars.length; vi++) {
     var rv = rdVars[vi];
@@ -1152,8 +1214,8 @@ async function ssRadius(page, xOff, cfg) {
     frame.appendChild(rect);
 
     var shortName = rv.name.replace('radius/', '');
-    _ssTxt(frame, shortName, rx, y + CARD + 6, 8, 'Regular', '#AAAAAA');
-    _ssTxt(frame, val >= 9000 ? '∞' : val + 'px', rx, y + CARD + 18, 8, 'Regular', '#CCCCCC');
+    _ssTxt(frame, shortName, rx, y + CARD + 6, 8, 'Regular', '#666666');
+    _ssTxt(frame, val >= 9000 ? '∞' : val + 'px', rx, y + CARD + 18, 8, 'Regular', '#999999');
   }
 
   frame.resize(frameW, y + CARD + 34 + PAD);
@@ -1172,8 +1234,8 @@ async function ssElevation(page, xOff) {
   var frame = _ssShell(page, 'Elevation', xOff);
   var y = PAD;
 
-  _ssTxt(frame, 'Elevation', PAD, y, 13, 'Medium', '#1A1A1A');
-  y += 40;
+  _ssTxt(frame, 'Elevation', PAD, y, 24, 'Medium', '#1A1A1A');
+  y += 52;
 
   for (var si = 0; si < styles.length; si++) {
     var style = styles[si];
@@ -1197,7 +1259,7 @@ async function ssElevation(page, xOff) {
     frame.appendChild(card);
 
     var shortName = style.name.split('/').pop() || style.name;
-    _ssTxt(frame, shortName, cx, y + CARD_H + 8, 8, 'Regular', '#AAAAAA');
+    _ssTxt(frame, shortName, cx, y + CARD_H + 8, 8, 'Regular', '#666666');
   }
 
   frame.resize(frameW, y + CARD_H + 28 + PAD);
