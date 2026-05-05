@@ -1154,17 +1154,22 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, y + 11, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, y + 11, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — write characters first, then link style, then cap size via range override
+    // Example — documented Figma pattern: textStyleId on empty node, then characters
     try {
-      if (style.fontName) await figma.loadFontAsync(style.fontName);
+      var fn = style.fontName || { family: 'Inter', style: 'Regular' };
+      await figma.loadFontAsync(fn);
       var pv = figma.createText();
-      pv.fontName = style.fontName || { family: 'Inter', style: 'Regular' };
+      // Do NOT set fontName before textStyleId — explicit fontName conflicts with style link
+      try {
+        pv.textStyleId = style.id;
+      } catch(e2) {
+        pv.fontName = fn;  // fallback: apply font manually if style link fails
+      }
       pv.characters = 'Aa';
-      // Link style after characters exist (empty-node textStyleId fails silently)
-      try { pv.textStyleId = style.id; } catch(e2) {}
-      // textStyleId makes fontSize read-only at node level; use range override to cap
       if (pv.fontSize > 28) {
-        try { pv.setRangeFontSize(0, 2, 28); } catch(e2) {}
+        try { pv.setRangeFontSize(0, 2, 28); } catch(e2) {
+          try { pv.fontSize = 28; } catch(e3) {}
+        }
       }
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y + 4;
