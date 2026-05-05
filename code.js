@@ -727,8 +727,11 @@ async function generateStylesheet(modules, moduleConfigs) {
       if (_pages[pi].name === 'Token Stylesheet') { page = _pages[pi]; break; }
     }
     if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
-    await figma.setCurrentPageAsync(page);  // textStyleId requires node to be on the current page
   } catch(e) { throw new Error('sheet-page: ' + e.message); }
+
+  // Switch to the stylesheet page so textStyleId works (requires currentPage match)
+  var _prevPage = figma.currentPage;
+  try { figma.currentPage = page; } catch(e) {}
 
   // Clear children: snapshot count first so re-reading page.children mid-loop can't throw
   try {
@@ -759,6 +762,9 @@ async function generateStylesheet(modules, moduleConfigs) {
   if (modules['Elevation']) {
     try { f = await ssElevation(page, x); if (f) x += f.width + 40; } catch(e) {}
   }
+
+  // Restore the page the user was on before stylesheet generation
+  try { if (_prevPage && _prevPage !== page) figma.currentPage = _prevPage; } catch(e) {}
 }
 
 // ── stylesheet helpers ────────────────────────────────────────────────────────
@@ -1159,7 +1165,7 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, labelY, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — debug: show what textStyleId does/doesn't do
+    // Example — apply Figma text style directly
     try {
       var fn = style.fontName || { family: 'Inter', style: 'Regular' };
       await figma.loadFontAsync(fn);
@@ -1168,24 +1174,14 @@ async function ssTypography(page, xOff, cfg) {
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y;
       frame.appendChild(pv);
-      var dbgMsg = 'id:' + String(style.id).slice(0, 12);
       try {
         pv.textStyleId = style.id;
-        dbgMsg = 'ok:' + String(pv.textStyleId).slice(0, 12);
       } catch(e2) {
-        dbgMsg = 'err:' + String(e2.message || e2).slice(0, 40);
         pv.fontName = fn;
         pv.fontSize = style.fontSize || 16;
       }
       var pvSz = pv.fontSize || style.fontSize || 16;
       pv.y = y + Math.round((rowH - pvSz) / 2);
-      var dbg = figma.createText();
-      dbg.fontName = { family: 'Inter', style: 'Regular' };
-      dbg.characters = dbgMsg;
-      dbg.fontSize = 7;
-      dbg.fills = [{ type: 'SOLID', color: { r: 0.8, g: 0.2, b: 0.2 } }];
-      dbg.x = cx; dbg.y = pv.y + pvSz + 2;
-      frame.appendChild(dbg);
     } catch(e) {}
 
     y += rowH;
