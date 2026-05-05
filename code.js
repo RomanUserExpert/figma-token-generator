@@ -1159,7 +1159,7 @@ async function ssTypography(page, xOff, cfg) {
     _ssTxt(frame, lhStr,                 cx, labelY, 9, 'Regular', '#777777'); cx += COL_LH   + COL_GAP;
     _ssTxt(frame, wtLabel,               cx, labelY, 9, 'Regular', '#777777'); cx += COL_WT   + COL_GAP;
 
-    // Example — append to frame first so node has document context for textStyleId
+    // Example — debug: show what textStyleId does/doesn't do
     try {
       var fn = style.fontName || { family: 'Inter', style: 'Regular' };
       await figma.loadFontAsync(fn);
@@ -1167,15 +1167,25 @@ async function ssTypography(page, xOff, cfg) {
       pv.characters = 'Aa';
       pv.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
       pv.x = cx; pv.y = y;
-      frame.appendChild(pv);  // must be in document tree before textStyleId
+      frame.appendChild(pv);
+      var dbgMsg = 'id:' + String(style.id).slice(0, 12);
       try {
         pv.textStyleId = style.id;
+        dbgMsg = 'ok:' + String(pv.textStyleId).slice(0, 12);
       } catch(e2) {
+        dbgMsg = 'err:' + String(e2.message || e2).slice(0, 40);
         pv.fontName = fn;
         pv.fontSize = style.fontSize || 16;
       }
       var pvSz = pv.fontSize || style.fontSize || 16;
       pv.y = y + Math.round((rowH - pvSz) / 2);
+      var dbg = figma.createText();
+      dbg.fontName = { family: 'Inter', style: 'Regular' };
+      dbg.characters = dbgMsg;
+      dbg.fontSize = 7;
+      dbg.fills = [{ type: 'SOLID', color: { r: 0.8, g: 0.2, b: 0.2 } }];
+      dbg.x = cx; dbg.y = pv.y + pvSz + 2;
+      frame.appendChild(dbg);
     } catch(e) {}
 
     y += rowH;
