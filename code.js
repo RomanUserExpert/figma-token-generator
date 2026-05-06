@@ -1320,19 +1320,11 @@ var ANT_HUE_STEP  = 2;     // degrees of hue rotation per step
 var ANT_SAT_LIGHT = 0.20;  // saturation decrease per lighter step (higher = lighter/airier light shades)
 var ANT_VAL_LIGHT = 0.08;  // brightness increase per lighter step (higher = lighter light shades)
 var ANT_SAT_DARK  = 0.05;  // saturation increase per darker step
-var ANT_VAL_DARK  = 0.12;  // brightness decrease per darker step (lower = less extreme dark shades)
+var ANT_VAL_DARK  = 0.22;  // brightness decrease per darker step — power-curved so 500→600 gets largest drop
 
-// Dark theme: for each of 10 positions (0=darkest, 9=lightest),
-// which light palette step index to sample and at what blend % over #141414
-var ANT_DARK_SRC    = [7, 6, 5, 5, 5, 5, 4, 3, 2, 1];
-var ANT_DARK_AMOUNT = [0.42, 0.52, 0.62, 0.74, 0.86, 0.94, 0.97, 0.99, 0.99, 1.00];
-
-function antInterp(arr, t) {
-  var pos = t * (arr.length - 1);
-  var lo = Math.floor(pos);
-  var hi = Math.min(arr.length - 1, lo + 1);
-  return arr[lo] * (1 - (pos - lo)) + arr[hi] * (pos - lo);
-}
+// Dark palette V-ramp bounds (direct HSV generation, no background blending)
+var DARK_V_MIN = 0.13;  // darkest shade (100)
+var DARK_V_MAX = 0.88;  // lightest shade (900/950)
 
 // Light palette — HSV with ±2° hue rotation and Ant Design sat/val steps.
 // isNeutral: force shade 50 to pure white (no hue tint for gray scales).
@@ -1383,7 +1375,7 @@ function buildLightShades(hex, steps, isNeutral) {
       var d2 = i - baseIdx;
       outH = (baseH - hueDir * ANT_HUE_STEP * d2 + 360) % 360;
       outS = Math.min(1.0, baseS + ANT_SAT_DARK * d2);
-      outV = Math.max(0, baseV - ANT_VAL_DARK * d2);
+      outV = Math.max(0.13, baseV - ANT_VAL_DARK * Math.pow(d2, 0.75));
     }
 
     var out = hsvToRgb(outH, Math.max(0, Math.min(1, outS)), Math.max(0, Math.min(1, outV)));
@@ -1391,8 +1383,9 @@ function buildLightShades(hex, steps, isNeutral) {
   });
 }
 
-// Dark palette — blend light palette shades over #141414 at varying opacities.
-// Matches the Ant Design dark theme pattern for non-neutral colors.
+// Dark palette — direct HSV ramp, same hue/sat logic as light palette.
+// t=0 = darkest shade (100), t=1 = lightest shade (900/950).
+// V steps are evenly spaced via a mild power curve — no background blending.
 // Neutral: pure grayscale ramp from near-black to near-white.
 function buildDarkShades(hex, steps, isNeutral) {
   var n = steps.length;
@@ -1405,21 +1398,28 @@ function buildDarkShades(hex, steps, isNeutral) {
     });
   }
 
-  var lightShades = buildLightShades(hex, steps, false);
-  var bgR = 20, bgG = 20, bgB = 20; // #141414
+  var rgb = hexToRgbArray(hex);
+  var hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+  var baseH = hsv.h, baseS = hsv.s;
+  var hueDir = (baseH >= 60 && baseH <= 240) ? -1 : 1;
+  // Anchor: shade 500 equivalent sits at ~40% into the dark scale
+  var baseIdx = Math.round(n * 0.4);
 
   return steps.map(function(step, i) {
-    var t = i / Math.max(1, n - 1); // 0 = darkest, 1 = lightest
+    var t = i / Math.max(1, n - 1);
 
-    var srcFrac    = antInterp(ANT_DARK_SRC, t);
-    var blendAmt   = antInterp(ANT_DARK_AMOUNT, t);
-    var srcIdx     = Math.max(0, Math.min(n - 1, Math.round(srcFrac / 9 * (n - 1))));
+    // V: power-curve ramp gives ~0.08–0.10 V step between every adjacent pair
+    var v = DARK_V_MIN + (DARK_V_MAX - DARK_V_MIN) * Math.pow(t, 0.9);
 
-    var src = lightShades[srcIdx].rgb;
-    var cr = clamp(Math.round((1 - blendAmt) * bgR + blendAmt * src.r * 255));
-    var cg = clamp(Math.round((1 - blendAmt) * bgG + blendAmt * src.g * 255));
-    var cb = clamp(Math.round((1 - blendAmt) * bgB + blendAmt * src.b * 255));
-    return { step: step, rgb: { r: cr / 255, g: cg / 255, b: cb / 255 } };
+    // S: slightly boosted at dark end, tapers toward bright end
+    var s = Math.max(0.40, Math.min(1.0, baseS + 0.06 - 0.22 * t));
+
+    // H: same ±2° rotation per step from baseIdx, same direction as light palette
+    var d = i - baseIdx;
+    var h = (baseH - hueDir * ANT_HUE_STEP * d + 360) % 360;
+
+    var out = hsvToRgb(h, s, v);
+    return { step: step, rgb: { r: out.r / 255, g: out.g / 255, b: out.b / 255 } };
   });
 }
 
