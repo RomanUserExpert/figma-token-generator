@@ -59,10 +59,23 @@ async function generateTokens(payload) {
   var totalVars = 0;
   var totalCollections = 0;
 
+  // Fetch everything once upfront. getOrCreate* functions read/write this cache
+  // in-memory, so no further API round-trips happen during generation.
+  var cache = {
+    collections:  (await figma.variables.getLocalVariableCollectionsAsync()) || [],
+    vars: {
+      'COLOR':  (await figma.variables.getLocalVariablesAsync('COLOR'))  || [],
+      'FLOAT':  (await figma.variables.getLocalVariablesAsync('FLOAT'))  || [],
+      'STRING': (await figma.variables.getLocalVariablesAsync('STRING')) || [],
+    },
+    textStyles:   (await figma.getLocalTextStylesAsync())   || [],
+    effectStyles: (await figma.getLocalEffectStylesAsync()) || [],
+  };
+
   if (modules['Colors']) {
     try {
       var cfg = Object.assign({}, moduleConfigs['Colors'] || {}, { overwrite: overwrite });
-      var r = await generateColors(colors, cfg);
+      var r = await generateColors(colors, cfg, cache);
       totalVars += r.vars;
       totalCollections += r.collections;
     } catch (e) { e.message = '[Colors] ' + e.message; throw e; }
@@ -71,7 +84,7 @@ async function generateTokens(payload) {
   if (modules['Spacing']) {
     try {
       var cfg2 = Object.assign({}, moduleConfigs['Spacing'] || {}, { overwrite: overwrite });
-      var r2 = await generateSpacing(cfg2);
+      var r2 = await generateSpacing(cfg2, cache);
       totalVars += r2.vars;
       totalCollections += 1;
     } catch (e) { e.message = '[Spacing] ' + e.message; throw e; }
@@ -80,7 +93,7 @@ async function generateTokens(payload) {
   if (modules['Border Radius']) {
     try {
       var cfg3 = Object.assign({}, moduleConfigs['Border Radius'] || {}, { overwrite: overwrite });
-      var r3 = await generateBorderRadius(cfg3);
+      var r3 = await generateBorderRadius(cfg3, cache);
       totalVars += r3.vars;
       totalCollections += 1;
     } catch (e) { e.message = '[Border Radius] ' + e.message; throw e; }
@@ -89,7 +102,7 @@ async function generateTokens(payload) {
   if (modules['Typography']) {
     try {
       var cfg4 = Object.assign({}, moduleConfigs['Typography'] || {}, { overwrite: overwrite });
-      var r4 = await generateTypography(cfg4);
+      var r4 = await generateTypography(cfg4, cache);
       totalVars += r4.vars + r4.styles;
       if (r4.vars > 0) totalCollections += 1;
     } catch (e) { e.message = '[Typography] ' + e.message; throw e; }
@@ -98,7 +111,7 @@ async function generateTokens(payload) {
   if (modules['Elevation']) {
     try {
       var cfg5 = Object.assign({}, moduleConfigs['Elevation'] || {}, { overwrite: overwrite });
-      var r5 = await generateElevation(cfg5);
+      var r5 = await generateElevation(cfg5, cache);
       totalVars += r5.vars + r5.styles;
       if (r5.vars > 0) totalCollections += 1;
     } catch (e) { e.message = '[Elevation] ' + e.message; throw e; }
@@ -106,7 +119,7 @@ async function generateTokens(payload) {
 
   if (payload.stylesheet) {
     try {
-      await generateStylesheet(modules, moduleConfigs);
+      await generateStylesheet(modules, moduleConfigs, cache);
     } catch (e) { e.message = '[Stylesheet] ' + e.message; throw e; }
   }
 
@@ -115,7 +128,7 @@ async function generateTokens(payload) {
 
 // ── colors ────────────────────────────────────────────────────────────────────
 
-async function generateColors(colors, cfg) {
+async function generateColors(colors, cfg, cache) {
   var lightCollName = cfg.collection || 'Primitives';
   var darkCollName  = lightCollName + ' Dark';
   var steps = getShadeSteps(cfg.shadeCount || 'standard', cfg.naming || 'step100');
@@ -123,7 +136,7 @@ async function generateColors(colors, cfg) {
   var darkEnabled = cfg.darkModeOn || false;
 
   // ── light primitives ──────────────────────────────────────────────────────
-  var lightColl = await getOrCreateCollection(lightCollName);
+  var lightColl = getOrCreateCollection(lightCollName, cache);
   var lightModeId = lightColl.modes[0].modeId;
 
   var vars = 0;
@@ -138,7 +151,7 @@ async function generateColors(colors, cfg) {
     var shades = buildLightShades(hex, steps, isNeutralColor);
     for (var si = 0; si < shades.length; si++) {
       var vName = 'color/' + name.toLowerCase() + '/' + shades[si].step;
-      var v = await getOrCreateVariable(vName, lightColl, 'COLOR', overwrite);
+      var v = getOrCreateVariable(vName, lightColl, 'COLOR', overwrite, cache);
       applyVar(v, lightModeId, shades[si].rgb, overwrite);
       vars++;
     }
@@ -149,7 +162,7 @@ async function generateColors(colors, cfg) {
   // ── dark primitives ───────────────────────────────────────────────────────
   var darkColl = null;
   if (darkEnabled) {
-    darkColl = await getOrCreateCollection(darkCollName);
+    darkColl = getOrCreateCollection(darkCollName, cache);
     var darkModeId = darkColl.modes[0].modeId;
 
     for (var ci2 = 0; ci2 < colorNames.length; ci2++) {
@@ -160,7 +173,7 @@ async function generateColors(colors, cfg) {
       var darkShades = buildDarkShades(hex2, steps, isNeutral);
       for (var si2 = 0; si2 < darkShades.length; si2++) {
         var vName2 = 'color/' + name2.toLowerCase() + '/' + darkShades[si2].step;
-        var v2 = await getOrCreateVariable(vName2, darkColl, 'COLOR', overwrite);
+        var v2 = getOrCreateVariable(vName2, darkColl, 'COLOR', overwrite, cache);
         applyVar(v2, darkModeId, darkShades[si2].rgb, overwrite);
         vars++;
       }
@@ -172,7 +185,7 @@ async function generateColors(colors, cfg) {
   // ── semantics ─────────────────────────────────────────────────────────────
   if (cfg.semanticOn) {
     var semName = cfg.semanticCollection || 'Semantics';
-    var semColl = await getOrCreateCollection(semName);
+    var semColl = getOrCreateCollection(semName, cache);
 
     if (darkEnabled) {
       if (semColl.modes.length < 2) { semColl.addMode('Dark'); }
@@ -185,8 +198,8 @@ async function generateColors(colors, cfg) {
     var semLightId = semColl.modes[0].modeId;
     var semDarkId  = darkEnabled ? semColl.modes[1].modeId : null;
 
-    // Fetch all COLOR vars from both primitive collections for aliasing
-    var allColorVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
+    // Use the cache — newly created primitives are already in cache.vars['COLOR']
+    var allColorVars = cache.vars['COLOR'];
 
     var findVar = function(collectionId, colorName, step) {
       var target = 'color/' + colorName + '/' + step;
@@ -202,7 +215,7 @@ async function generateColors(colors, cfg) {
 
     for (var ti = 0; ti < semTokens.length; ti++) {
       var t = semTokens[ti];
-      var sv = await getOrCreateVariable(t.token, semColl, 'COLOR', overwrite);
+      var sv = getOrCreateVariable(t.token, semColl, 'COLOR', overwrite, cache);
 
       var lightStep = t.lightStep !== undefined ? t.lightStep : t.step;
       var darkStep  = t.darkStep  !== undefined ? t.darkStep  : t.step;
@@ -326,7 +339,7 @@ function buildSemanticTokens(colorNames, steps) {
 
 // ── spacing ───────────────────────────────────────────────────────────────────
 
-async function generateSpacing(cfg) {
+async function generateSpacing(cfg, cache) {
   var collectionName = cfg.collection || 'Spacing';
   var base = parseInt(cfg.base || '4');
   var qty = cfg.qty || 'standard';
@@ -335,7 +348,7 @@ async function generateSpacing(cfg) {
   var prefix = cfg.prefix || 'sp';
   var overwrite = cfg.overwrite !== false;
 
-  var collection = await getOrCreateCollection(collectionName);
+  var collection = getOrCreateCollection(collectionName, cache);
   var modeId = collection.modes[0].modeId;
 
   var vars = 0;
@@ -344,7 +357,7 @@ async function generateSpacing(cfg) {
     var tokenName = naming === 'number'
       ? 'spacing/' + prefix + '-' + value
       : 'spacing/' + prefix + '-' + i;
-    var v = await getOrCreateVariable(tokenName, collection, 'FLOAT', overwrite);
+    var v = getOrCreateVariable(tokenName, collection, 'FLOAT', overwrite, cache);
     applyVar(v, modeId, value, overwrite);
     vars++;
   }
@@ -354,7 +367,7 @@ async function generateSpacing(cfg) {
 
 // ── border radius ─────────────────────────────────────────────────────────────
 
-async function generateBorderRadius(cfg) {
+async function generateBorderRadius(cfg, cache) {
   var collectionName = cfg.collection || 'Border Radius';
   var prefix = cfg.prefix || 'rd';
   var base = parseInt(cfg.base || '4');
@@ -364,19 +377,19 @@ async function generateBorderRadius(cfg) {
   var includeFull = cfg.full !== false;
   var overwrite = cfg.overwrite !== false;
 
-  var collection = await getOrCreateCollection(collectionName);
+  var collection = getOrCreateCollection(collectionName, cache);
   var modeId = collection.modes[0].modeId;
 
   var vars = 0;
   for (var i = 0; i < count; i++) {
     var value = i === 0 ? 0 : base * i;
     var name = naming === 'number' ? ('' + value) : ('' + (i + 1));
-    var v = await getOrCreateVariable('radius/' + prefix + '-' + name, collection, 'FLOAT', overwrite);
+    var v = getOrCreateVariable('radius/' + prefix + '-' + name, collection, 'FLOAT', overwrite, cache);
     applyVar(v, modeId, value, overwrite);
     vars++;
   }
   if (includeFull) {
-    var vf = await getOrCreateVariable('radius/' + prefix + '-full', collection, 'FLOAT', overwrite);
+    var vf = getOrCreateVariable('radius/' + prefix + '-full', collection, 'FLOAT', overwrite, cache);
     applyVar(vf, modeId, 9999, overwrite);
     vars++;
   }
@@ -386,7 +399,7 @@ async function generateBorderRadius(cfg) {
 
 // ── typography ────────────────────────────────────────────────────────────────
 
-async function generateTypography(cfg) {
+async function generateTypography(cfg, cache) {
   if (cfg.generateStyles === false && cfg.generateVars === false) return { vars: 0, styles: 0 };
 
   var fonts    = cfg.fonts || [
@@ -448,16 +461,16 @@ async function generateTypography(cfg) {
     return slist.map(function(pair) { return [pair[0], Math.round(pair[1] * scale)]; });
   }
 
-  var typoColl   = doVars ? await getOrCreateCollection('Typography') : null;
+  var typoColl   = doVars ? getOrCreateCollection('Typography', cache) : null;
   var typoModeId = typoColl ? typoColl.modes[0].modeId : null;
-  var existingStyles = doStyles ? ((await figma.getLocalTextStylesAsync()) || []) : [];
+  var existingStyles = doStyles ? cache.textStyles : [];
   var totalVars = 0;
   var totalStyles = 0;
 
   // Single shared letter-spacing variable — always 0
   var lsVar = null;
   if (doVars) {
-    lsVar = await getOrCreateVariable('letter-spacing/none', typoColl, 'FLOAT', overwrite);
+    lsVar = getOrCreateVariable('letter-spacing/none', typoColl, 'FLOAT', overwrite, cache);
     applyVar(lsVar, typoModeId, 0, overwrite);
     totalVars++;
   }
@@ -499,12 +512,12 @@ async function generateTypography(cfg) {
       // per-category variables
       var ffVar = null;
       if (doVars) {
-        ffVar = await getOrCreateVariable('font-family/' + cat, typoColl, 'STRING', overwrite);
+        ffVar = getOrCreateVariable('font-family/' + cat, typoColl, 'STRING', overwrite, cache);
         applyVar(ffVar, typoModeId, family, overwrite);
         totalVars++;
 
         var wNum = weight === 'Semi Bold' ? 600 : weight === 'Medium' ? 500 : 400;
-        var fwVar = await getOrCreateVariable('font-weight/' + cat, typoColl, 'FLOAT', overwrite);
+        var fwVar = getOrCreateVariable('font-weight/' + cat, typoColl, 'FLOAT', overwrite, cache);
         applyVar(fwVar, typoModeId, wNum, overwrite);
         totalVars++;
       }
@@ -532,11 +545,11 @@ async function generateTypography(cfg) {
         var fsVar = null;
         var lhVar = null;
         if (doVars) {
-          fsVar = await getOrCreateVariable('font-size/' + base, typoColl, 'FLOAT', overwrite);
+          fsVar = getOrCreateVariable('font-size/' + base, typoColl, 'FLOAT', overwrite, cache);
           applyVar(fsVar, typoModeId, px, overwrite);
           totalVars++;
 
-          lhVar = await getOrCreateVariable('line-height/' + base, typoColl, 'FLOAT', overwrite);
+          lhVar = getOrCreateVariable('line-height/' + base, typoColl, 'FLOAT', overwrite, cache);
           applyVar(lhVar, typoModeId, Math.round(px * lhPct / 100), overwrite);
           totalVars++;
         }
@@ -547,7 +560,7 @@ async function generateTypography(cfg) {
           for (var ei = 0; ei < existingStyles.length; ei++) {
             if (existingStyles[ei].name === styleName) { style = existingStyles[ei]; break; }
           }
-          if (!style) style = figma.createTextStyle();
+          if (!style) { style = figma.createTextStyle(); cache.textStyles.push(style); }
           if (style.fontName) {
             try { await figma.loadFontAsync(style.fontName); } catch (e) {}
           }
@@ -580,7 +593,7 @@ async function generateTypography(cfg) {
 
 // ── elevation ────────────────────────────────────────────────────────────────
 
-async function generateElevation(cfg) {
+async function generateElevation(cfg, cache) {
   var preset          = cfg.preset      || 'soft';
   var collectionName  = cfg.collection  || 'Elevation';
   var prefix          = cfg.prefix      || 'shadow';
@@ -654,9 +667,9 @@ async function generateElevation(cfg) {
 
   var levels = PRESETS[preset] || PRESETS.soft;
 
-  var elevColl   = await getOrCreateCollection(collectionName);
+  var elevColl   = getOrCreateCollection(collectionName, cache);
   var elevModeId = elevColl.modes[0].modeId;
-  var existingStyles = (await figma.getLocalEffectStylesAsync()) || [];
+  var existingStyles = cache.effectStyles;
   var totalVars = 0;
 
   for (var i = 0; i < levels.length; i++) {
@@ -671,19 +684,19 @@ async function generateElevation(cfg) {
       var sfx = multi ? '-' + (si + 1) : '';
       var base = prefix + '/' + lvl.name;
 
-      var blurVar = await getOrCreateVariable(base + '/blur' + sfx,    elevColl, 'FLOAT', overwrite);
+      var blurVar = getOrCreateVariable(base + '/blur' + sfx,    elevColl, 'FLOAT', overwrite, cache);
       applyVar(blurVar, elevModeId, eff.radius, overwrite);
 
-      var yVar = await getOrCreateVariable(base + '/y' + sfx,          elevColl, 'FLOAT', overwrite);
+      var yVar = getOrCreateVariable(base + '/y' + sfx,          elevColl, 'FLOAT', overwrite, cache);
       applyVar(yVar, elevModeId, eff.offset.y, overwrite);
 
-      var xVar = await getOrCreateVariable(base + '/x' + sfx,          elevColl, 'FLOAT', overwrite);
+      var xVar = getOrCreateVariable(base + '/x' + sfx,          elevColl, 'FLOAT', overwrite, cache);
       applyVar(xVar, elevModeId, eff.offset.x, overwrite);
 
-      var spreadVar = await getOrCreateVariable(base + '/spread' + sfx, elevColl, 'FLOAT', overwrite);
+      var spreadVar = getOrCreateVariable(base + '/spread' + sfx, elevColl, 'FLOAT', overwrite, cache);
       applyVar(spreadVar, elevModeId, eff.spread, overwrite);
 
-      var colorVar = await getOrCreateVariable(base + '/color' + sfx,   elevColl, 'COLOR', overwrite);
+      var colorVar = getOrCreateVariable(base + '/color' + sfx,   elevColl, 'COLOR', overwrite, cache);
       applyVar(colorVar, elevModeId, eff.color, overwrite);
 
       totalVars += 5;
@@ -718,7 +731,7 @@ async function generateElevation(cfg) {
     for (var ei = 0; ei < existingStyles.length; ei++) {
       if (existingStyles[ei].name === styleName) { style = existingStyles[ei]; break; }
     }
-    if (!style) style = figma.createEffectStyle();
+    if (!style) { style = figma.createEffectStyle(); cache.effectStyles.push(style); }
     if (!style.name || overwrite) {
       style.name    = styleName;
       style.effects = boundEffects.length > 0 ? boundEffects : [];
@@ -730,7 +743,7 @@ async function generateElevation(cfg) {
 
 // ── stylesheet ────────────────────────────────────────────────────────────────
 
-async function generateStylesheet(modules, moduleConfigs) {
+async function generateStylesheet(modules, moduleConfigs, cache) {
   var page = null;
   try {
     var _pages = figma.root.children;
@@ -760,19 +773,19 @@ async function generateStylesheet(modules, moduleConfigs) {
   var f;
 
   if (modules['Colors']) {
-    try { var cr = await ssColors(page, x, moduleConfigs['Colors'] || {}); if (cr) x += cr.totalWidth + 40; } catch(e) {}
+    try { var cr = await ssColors(page, x, moduleConfigs['Colors'] || {}, cache); if (cr) x += cr.totalWidth + 40; } catch(e) {}
   }
   if (modules['Spacing']) {
-    try { f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {}); if (f) x += f.width + 40; } catch(e) {}
+    try { f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {}, cache); if (f) x += f.width + 40; } catch(e) {}
   }
   if (modules['Typography']) {
-    try { f = await ssTypography(page, x, moduleConfigs['Typography'] || {}); if (f) x += f.width + 40; } catch(e) {}
+    try { f = await ssTypography(page, x, moduleConfigs['Typography'] || {}, cache); if (f) x += f.width + 40; } catch(e) {}
   }
   if (modules['Border Radius']) {
-    try { f = await ssRadius(page, x, moduleConfigs['Border Radius'] || {}); if (f) x += f.width + 40; } catch(e) {}
+    try { f = await ssRadius(page, x, moduleConfigs['Border Radius'] || {}, cache); if (f) x += f.width + 40; } catch(e) {}
   }
   if (modules['Elevation']) {
-    try { f = await ssElevation(page, x); if (f) x += f.width + 40; } catch(e) {}
+    try { f = await ssElevation(page, x, cache); if (f) x += f.width + 40; } catch(e) {}
   }
 
   // Restore the page the user was on before stylesheet generation
@@ -831,7 +844,7 @@ function _ssDivider(parent, x, y, w, col) {
 
 // ── colors (light + dark frames, each with primitives + semantics) ─────────────
 
-async function ssColors(page, xOff, cfg) {
+async function ssColors(page, xOff, cfg, cache) {
   var PAD = 32;
   // Primitive swatch dims
   var SW_P = 88, SH_P = 56, SW_P_GAP = 6;
@@ -845,7 +858,7 @@ async function ssColors(page, xOff, cfg) {
   var darkCollName = collName + ' Dark';
   var semName      = cfg.semanticCollection || 'Semantics';
 
-  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
+  var collections = cache.collections;
   var primColl = null, darkPrimColl = null, semColl = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === collName)     primColl     = collections[i];
@@ -854,7 +867,7 @@ async function ssColors(page, xOff, cfg) {
   }
   if (!primColl) return null;
 
-  var allColorVars = (await figma.variables.getLocalVariablesAsync('COLOR')) || [];
+  var allColorVars = cache.vars['COLOR'];
 
   function getPrimVars(coll) {
     return allColorVars.filter(function(v) {
@@ -1040,18 +1053,18 @@ async function ssColors(page, xOff, cfg) {
 
 // ── spacing ───────────────────────────────────────────────────────────────────
 
-async function ssSpacing(page, xOff, cfg) {
+async function ssSpacing(page, xOff, cfg, cache) {
   var PAD = 32, NAME_W = 140, VAL_W = 44, MAX_BAR = 200, BAR_H = 8;
   var collName = cfg.collection || 'Spacing';
 
-  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
+  var collections = cache.collections;
   var coll = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === collName) { coll = collections[i]; break; }
   }
   if (!coll) return null;
 
-  var allVars = (await figma.variables.getLocalVariablesAsync('FLOAT')) || [];
+  var allVars = cache.vars['FLOAT'];
   var spVars = allVars.filter(function(v) {
     return v.variableCollectionId === coll.id && v.name.startsWith('spacing/');
   });
@@ -1093,7 +1106,7 @@ async function ssSpacing(page, xOff, cfg) {
 
 // ── typography ────────────────────────────────────────────────────────────────
 
-async function ssTypography(page, xOff, cfg) {
+async function ssTypography(page, xOff, cfg, cache) {
   var PAD = 32;
   // Column order: style | font-family | font-size | line-height | font-weight | example
   var COL_NAME = 120, COL_FAM = 96, COL_SIZE = 52, COL_LH = 72, COL_WT = 128, COL_PREV = 120, COL_GAP = 16;
@@ -1105,7 +1118,7 @@ async function ssTypography(page, xOff, cfg) {
     'Bold':700, 'ExtraBold':800, 'Extra Bold':800, 'Black':900,
   };
 
-  var styles = (await figma.getLocalTextStylesAsync()) || [];
+  var styles = cache.textStyles;
   if (styles.length === 0) return null;
 
   var catOrder = ['Heading', 'Title', 'Body', 'Label', 'Caption', 'Button', 'Link'];
@@ -1205,18 +1218,18 @@ async function ssTypography(page, xOff, cfg) {
 
 // ── border radius ─────────────────────────────────────────────────────────────
 
-async function ssRadius(page, xOff, cfg) {
+async function ssRadius(page, xOff, cfg, cache) {
   var PAD = 32, CARD = 60, GAP = 16;
   var collName = cfg.collection || 'Border Radius';
 
-  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
+  var collections = cache.collections;
   var coll = null;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === collName) { coll = collections[i]; break; }
   }
   if (!coll) return null;
 
-  var allVars = (await figma.variables.getLocalVariablesAsync('FLOAT')) || [];
+  var allVars = cache.vars['FLOAT'];
   var rdVars = allVars.filter(function(v) {
     return v.variableCollectionId === coll.id && v.name.startsWith('radius/');
   });
@@ -1266,10 +1279,10 @@ async function ssRadius(page, xOff, cfg) {
 
 // ── elevation ─────────────────────────────────────────────────────────────────
 
-async function ssElevation(page, xOff) {
+async function ssElevation(page, xOff, cache) {
   var PAD = 32, CARD_W = 80, CARD_H = 56, GAP = 28;
 
-  var styles = (await figma.getLocalEffectStylesAsync()) || [];
+  var styles = cache.effectStyles;
   if (styles.length === 0) return null;
 
   var frameW = PAD + styles.length * (CARD_W + GAP) - GAP + PAD;
@@ -1483,24 +1496,27 @@ function findColorKey(colorNames, preferred) {
   return colorNames.length > 0 ? colorNames[0].toLowerCase() : preferred;
 }
 
-async function getOrCreateCollection(name) {
-  var collections = (await figma.variables.getLocalVariableCollectionsAsync()) || [];
+function getOrCreateCollection(name, cache) {
+  var collections = cache.collections;
   for (var i = 0; i < collections.length; i++) {
     if (collections[i].name === name) return collections[i];
   }
-  return figma.variables.createVariableCollection(name);
+  var c = figma.variables.createVariableCollection(name);
+  collections.push(c);
+  return c;
 }
 
-async function getOrCreateVariable(name, collection, type, overwrite) {
-  var all = (await figma.variables.getLocalVariablesAsync(type)) || [];
-  for (var i = 0; i < all.length; i++) {
-    if (all[i].name === name && all[i].variableCollectionId === collection.id) {
-      all[i].__existed = true;
-      return all[i];
+function getOrCreateVariable(name, collection, type, overwrite, cache) {
+  var arr = cache.vars[type] || (cache.vars[type] = []);
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i].name === name && arr[i].variableCollectionId === collection.id) {
+      arr[i].__existed = true;
+      return arr[i];
     }
   }
   var v = figma.variables.createVariable(name, collection, type);
   v.__existed = false;
+  arr.push(v);
   return v;
 }
 
