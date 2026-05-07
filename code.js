@@ -28,6 +28,17 @@ figma.ui.onmessage = async (msg) => {
       for (const s of textStyles) s.remove();
       const effectStyles = await figma.getLocalEffectStylesAsync();
       for (const s of effectStyles) s.remove();
+      // Remove the Token Stylesheet page so it doesn't linger with broken variable references
+      try {
+        const pages = figma.root.children;
+        for (var pi = 0; pi < pages.length; pi++) {
+          if (pages[pi].name === 'Token Stylesheet') {
+            // Figma requires at least one page — only remove if more than one page exists
+            if (figma.root.children.length > 1) pages[pi].remove();
+            break;
+          }
+        }
+      } catch (pe) {}
       figma.ui.postMessage({ type: 'clear-done' });
     } catch (err) {
       figma.ui.postMessage({ type: 'error', message: err.message });
@@ -1306,11 +1317,18 @@ async function ssElevation(page, xOff) {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function getShadeSteps(shadeCount, naming) {
-  var count = shadeCount === 'compact' ? 8 : shadeCount === 'system' ? 11 : 10;
-  var step  = naming === 'step1' ? 1 : naming === 'step50' ? 50 : 100;
-  var steps = [];
-  for (var i = 1; i <= count; i++) steps.push(i * step);
-  return steps;
+  // Sequential (1, 2, 3…) — purely numeric, 500 never present so anchor uses Math.floor(n/2)
+  if (naming === 'step1') {
+    var count = shadeCount === 'compact' ? 8 : shadeCount === 'system' ? 11 : 10;
+    var s = []; for (var i = 1; i <= count; i++) s.push(i); return s;
+  }
+  // Standard design-token step sequences (Tailwind/Figma convention).
+  // 500 is always at the midpoint so buildLightShades anchors the input color correctly.
+  if (shadeCount === 'compact') return [100, 200, 300, 400, 500, 600, 700, 800];         // 8 shades, 100-800
+  if (shadeCount === 'system')  return [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]; // 11 shades, 50-950
+  // standard (10 shades): step50 → 50-900  |  step100 → 100-900 (extra 50 prefix slot omitted)
+  if (naming === 'step100') return [100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+  return [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]; // step50 default for standard
 }
 
 // ── Ant Design palette algorithm ──────────────────────────────────────────────
