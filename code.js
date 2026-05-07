@@ -1330,18 +1330,16 @@ async function ssElevation(page, xOff, cache) {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function getShadeSteps(shadeCount, naming) {
-  // Sequential (1, 2, 3…) — purely numeric, 500 never present so anchor uses Math.floor(n/2)
+  var count = shadeCount === 'compact' ? 8 : shadeCount === 'system' ? 11 : 10;
+  var s = [];
   if (naming === 'step1') {
-    var count = shadeCount === 'compact' ? 8 : shadeCount === 'system' ? 11 : 10;
-    var s = []; for (var i = 1; i <= count; i++) s.push(i); return s;
+    for (var i = 1; i <= count; i++) s.push(i);
+  } else if (naming === 'step100') {
+    for (var i = 1; i <= count; i++) s.push(i * 100);
+  } else {
+    for (var i = 1; i <= count; i++) s.push(i * 50);
   }
-  // Standard design-token step sequences (Tailwind/Figma convention).
-  // 500 is always at the midpoint so buildLightShades anchors the input color correctly.
-  if (shadeCount === 'compact') return [100, 200, 300, 400, 500, 600, 700, 800];         // 8 shades, 100-800
-  if (shadeCount === 'system')  return [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]; // 11 shades, 50-950
-  // standard (10 shades): step50 → 50-900  |  step100 → 100-900 (extra 50 prefix slot omitted)
-  if (naming === 'step100') return [100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
-  return [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]; // step50 default for standard
+  return s;
 }
 
 // ── Ant Design palette algorithm ──────────────────────────────────────────────
@@ -1365,8 +1363,7 @@ function buildLightShades(hex, steps, isNeutral) {
   var baseH = hsv.h, baseS = hsv.s, baseV = hsv.v;
   var n = steps.length;
 
-  var baseIdx = steps.indexOf(500);
-  if (baseIdx === -1) baseIdx = Math.floor(n / 2);
+  var baseIdx = Math.floor(n / 2);
 
   // Neutral: linear V ramp anchored at shade 500, saturation scaled by a power curve
   // so lighter shades are nearly white/gray while deeper shades carry the user's hue.
