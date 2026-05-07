@@ -436,7 +436,7 @@ const MODULE_CONFIGS = {
             <ColorFieldRow key={key} label={label} colorKey={key} colors={colors} setColors={setColors} />
           ))}
           {customColors.map((c, i) => (
-            <ColorFieldRow key={i} label={c.label} colorKey={c.label || `custom${i+1}`}
+            <ColorFieldRow key={c.id || c.label || i} label={c.label} colorKey={c.label || `custom${i+1}`}
               colors={colors} setColors={setColors} editable
               onLabelChange={v => {
                 const reserved = ['Neutral','Brand','Info','Error','Success','Warning'];
@@ -457,8 +457,11 @@ const MODULE_CONFIGS = {
           ))}
           <div style={{ textAlign: 'right', marginTop: 4 }}>
             <span onClick={() => {
-              const label = `custom${customColors.length+1}`;
-              setCustomColors(p => [...p, { label }]);
+              const nums = customColors.map(x => { const m = /^custom(\d+)$/.exec(x.label||''); return m ? +m[1] : 0; });
+              const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
+              const label = `custom${nextNum}`;
+              const id = `cc_${Date.now()}`;
+              setCustomColors(p => [...p, { id, label }]);
               setColors(p => ({...p, [label]: adjustColor('#6B7280', label)}));
             }}
               style={{ fontSize: 11, color: accent, cursor: 'pointer', userSelect: 'none' }}
