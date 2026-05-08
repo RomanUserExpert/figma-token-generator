@@ -1,4 +1,4 @@
-# Token Studio — Figma Plugin
+# UI Token Starter Pack — Figma Plugin
 
 A Figma plugin that generates a practical, startup-ready design token system in seconds.
 

@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 560, height: 760, title: 'Token Studio' });
+figma.showUI(__html__, { width: 560, height: 760, title: 'UI Token Starter Pack' });
 
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate') {
