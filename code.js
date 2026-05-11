@@ -950,6 +950,23 @@ async function ssColors(page, xOff, cfg, cache) {
     });
   }
 
+  // ── free-plan dark semantics: separate "Semantics Dark" collection ──
+  var semDarkCollFP = null, semDarkGroupsFP = {}, semDarkCollModeIdFP = null;
+  if (semanticOn && !semDarkId) {
+    for (var j = 0; j < collections.length; j++) {
+      if (collections[j].name === semName + ' Dark') { semDarkCollFP = collections[j]; break; }
+    }
+    if (semDarkCollFP) {
+      semDarkCollModeIdFP = semDarkCollFP.modes[0].modeId;
+      var sdVars = allColorVars.filter(function(v) { return v.variableCollectionId === semDarkCollFP.id; });
+      for (var vi2 = 0; vi2 < sdVars.length; vi2++) {
+        var sdPref = sdVars[vi2].name.split('/')[0];
+        if (!semDarkGroupsFP[sdPref]) semDarkGroupsFP[sdPref] = [];
+        semDarkGroupsFP[sdPref].push(sdVars[vi2]);
+      }
+    }
+  }
+
   // ── frame width ──
   var maxShades = lightData.cNames.reduce(function(m, n) { return Math.max(m, lightData.groups[n].length); }, 0);
   var primInnerW = Math.max(0, maxShades * (SW_P + SW_P_GAP) - SW_P_GAP);
@@ -1024,8 +1041,11 @@ async function ssColors(page, xOff, cfg, cache) {
     }
 
     // ── Semantic section ──
-    if (semanticOn && semColl && semVars.length > 0) {
-      var semModeId = (isDark && semDarkId) ? semDarkId : semLightId;
+    var useFreePlanDark = isDark && !semDarkId && semDarkCollFP;
+    var activeSemGroups = useFreePlanDark ? semDarkGroupsFP : semGroups;
+    var hasSemanticContent = semanticOn && semColl && (useFreePlanDark ? Object.keys(semDarkGroupsFP).length > 0 : semVars.length > 0);
+    if (hasSemanticContent) {
+      var semModeId = useFreePlanDark ? semDarkCollModeIdFP : ((isDark && semDarkId) ? semDarkId : semLightId);
 
       y += 4;
       _ssDivider(frame, PAD, y, innerW, dividerClr);
@@ -1039,7 +1059,7 @@ async function ssColors(page, xOff, cfg, cache) {
 
       for (var gi = 0; gi < SEM_COLS_ORDER.length; gi++) {
         var gpref = SEM_COLS_ORDER[gi];
-        var gvars = semGroups[gpref];
+        var gvars = activeSemGroups[gpref];
         if (!gvars || gvars.length === 0) { colX += SEM_COL_W + SEM_COL_GAP; continue; }
 
         var cx = colX;
