@@ -468,6 +468,10 @@ const MODULE_CONFIGS = {
         }
       };
       window.addEventListener('message', handler);
+      // Request the check if result not yet cached — fires after component mounts
+      if (window.__planSupportsMultiMode === undefined) {
+        parent.postMessage({ pluginMessage: { type: 'check-plan' } }, '*');
+      }
       return () => window.removeEventListener('message', handler);
     }, []);
 

@@ -1,20 +1,18 @@
 figma.showUI(__html__, { width: 560, height: 760, title: 'UI Token Starter Pack' });
 
-// Probe plan tier: free plan throws when addMode is called
-(async function() {
-  var probe = null;
-  try {
-    probe = figma.variables.createVariableCollection('__plan_probe__');
-    probe.addMode('__test__');
-    probe.remove();
-    figma.ui.postMessage({ type: 'plan-check', supportsMultiMode: true });
-  } catch (e) {
-    if (probe) { try { probe.remove(); } catch (e2) {} }
-    figma.ui.postMessage({ type: 'plan-check', supportsMultiMode: false });
-  }
-})();
-
 figma.ui.onmessage = async (msg) => {
+  if (msg.type === 'check-plan') {
+    var probe = null;
+    try {
+      probe = figma.variables.createVariableCollection('__plan_probe__');
+      probe.addMode('__test__');
+      probe.remove();
+      figma.ui.postMessage({ type: 'plan-check', supportsMultiMode: true });
+    } catch (e) {
+      if (probe) { try { probe.remove(); } catch (e2) {} }
+      figma.ui.postMessage({ type: 'plan-check', supportsMultiMode: false });
+    }
+  }
   if (msg.type === 'generate') {
     try {
       const result = await generateTokens(msg.payload);
