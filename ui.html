@@ -455,6 +455,22 @@ const MODULE_CONFIGS = {
     }));
     const accent = '#E05F03';
 
+    // Plan tier detection — default true (no warning) until probe responds
+    const [supportsMultiMode, setSupportsMultiMode] = React.useState(
+      window.__planSupportsMultiMode !== false
+    );
+    React.useEffect(() => {
+      const handler = (e) => {
+        const msg = e.data?.pluginMessage;
+        if (msg?.type === 'plan-check') {
+          window.__planSupportsMultiMode = msg.supportsMultiMode;
+          setSupportsMultiMode(msg.supportsMultiMode);
+        }
+      };
+      window.addEventListener('message', handler);
+      return () => window.removeEventListener('message', handler);
+    }, []);
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <ColorSection>
@@ -553,6 +569,19 @@ const MODULE_CONFIGS = {
           </div>
           {config.semanticOn && (
             <div style={{ marginTop: 8 }}>
+              {config.darkModeOn && !supportsMultiMode && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8,
+                  padding: '5px 8px', borderRadius: 4, background: '#FFFAEB', border: '1px solid #FCD34D' }}>
+                  <svg width="11" height="10" viewBox="0 0 11 10" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+                    <path d="M5.5 1L10 9.5H1L5.5 1z" stroke="#D97706" strokeWidth="1" strokeLinejoin="round"/>
+                    <path d="M5.5 4v2.2" stroke="#D97706" strokeWidth="1.1" strokeLinecap="round"/>
+                    <circle cx="5.5" cy="7.8" r="0.5" fill="#D97706"/>
+                  </svg>
+                  <span style={{ fontSize: 10, color: '#92400E', lineHeight: 1.5 }}>
+                    Figma free plan doesn't support multiple modes — dark semantics will be generated as a separate <strong style={{ color: '#78350F' }}>Semantics Dark</strong> collection instead.
+                  </span>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: '#666666', width: 90, flexShrink: 0 }}>Collection name</span>
                 <div style={{ flex: 1, height: 28, background: '#FFFFFF', border: '1px solid #D4D3D1', borderRadius: 4 }}>

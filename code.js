@@ -1,5 +1,19 @@
 figma.showUI(__html__, { width: 560, height: 760, title: 'UI Token Starter Pack' });
 
+// Probe plan tier: free plan throws when addMode is called
+(async function() {
+  var probe = null;
+  try {
+    probe = figma.variables.createVariableCollection('__plan_probe__');
+    probe.addMode('__test__');
+    probe.remove();
+    figma.ui.postMessage({ type: 'plan-check', supportsMultiMode: true });
+  } catch (e) {
+    if (probe) { try { probe.remove(); } catch (e2) {} }
+    figma.ui.postMessage({ type: 'plan-check', supportsMultiMode: false });
+  }
+})();
+
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate') {
     try {
@@ -134,6 +148,7 @@ async function generateColors(colors, cfg, cache) {
   var steps = getShadeSteps(cfg.shadeCount || 'standard', cfg.naming || 'step100');
   var overwrite = cfg.overwrite !== false;
   var darkEnabled = cfg.darkModeOn || false;
+  var freePlanFallback = false; // true if addMode('Dark') fails on Figma free plan
 
   // ── light primitives ──────────────────────────────────────────────────────
   var lightColl = getOrCreateCollection(lightCollName, cache);
@@ -186,17 +201,34 @@ async function generateColors(colors, cfg, cache) {
   if (cfg.semanticOn) {
     var semName = cfg.semanticCollection || 'Semantics';
     var semColl = getOrCreateCollection(semName, cache);
+    var semDarkColl = null;
 
     if (darkEnabled) {
-      if (semColl.modes.length < 2) { semColl.addMode('Dark'); }
-      semColl.renameMode(semColl.modes[0].modeId, 'Light');
-      semColl.renameMode(semColl.modes[1].modeId, 'Dark');
+      if (semColl.modes.length < 2) {
+        try {
+          semColl.addMode('Dark');
+        } catch (planErr) {
+          freePlanFallback = true;
+        }
+      }
+      if (!freePlanFallback && semColl.modes.length >= 2) {
+        semColl.renameMode(semColl.modes[0].modeId, 'Light');
+        semColl.renameMode(semColl.modes[1].modeId, 'Dark');
+      } else {
+        // Free plan: keep Semantics as Light-only, mirror dark values into a separate collection
+        freePlanFallback = true;
+        semColl.renameMode(semColl.modes[0].modeId, 'Light');
+        semDarkColl = getOrCreateCollection(semName + ' Dark', cache);
+        semDarkColl.renameMode(semDarkColl.modes[0].modeId, 'Dark');
+        collections++;
+      }
     } else {
       while (semColl.modes.length > 1) { semColl.removeMode(semColl.modes[1].modeId); }
       semColl.renameMode(semColl.modes[0].modeId, 'Light');
     }
     var semLightId = semColl.modes[0].modeId;
-    var semDarkId  = darkEnabled ? semColl.modes[1].modeId : null;
+    var semDarkId  = (!freePlanFallback && darkEnabled) ? semColl.modes[1].modeId : null;
+    var semDarkCollModeId = (freePlanFallback && semDarkColl) ? semDarkColl.modes[0].modeId : null;
 
     // Use the cache — newly created primitives are already in cache.vars['COLOR']
     var allColorVars = cache.vars['COLOR'];
@@ -223,10 +255,18 @@ async function generateColors(colors, cfg, cache) {
       var lightPrim = findVar(lightColl.id, t.colorName, lightStep);
       if (lightPrim && (!sv.__existed || overwrite)) sv.setValueForMode(semLightId, figma.variables.createVariableAlias(lightPrim));
 
-      if (darkEnabled && semDarkId) {
+      if (!freePlanFallback && darkEnabled && semDarkId) {
+        // Paid plan: dark values as a second mode in the same Semantics collection
         var darkPrimColl = darkColl || lightColl;
         var darkPrim = findVar(darkPrimColl.id, t.colorName, darkStep);
         if (darkPrim && (!sv.__existed || overwrite)) sv.setValueForMode(semDarkId, figma.variables.createVariableAlias(darkPrim));
+      } else if (freePlanFallback && semDarkColl && semDarkCollModeId) {
+        // Free plan: dark values go into the separate "Semantics Dark" collection
+        var svDark = getOrCreateVariable(t.token, semDarkColl, 'COLOR', overwrite, cache);
+        var darkPrimColl2 = darkColl || lightColl;
+        var darkPrim2 = findVar(darkPrimColl2.id, t.colorName, darkStep);
+        if (darkPrim2 && (!svDark.__existed || overwrite)) svDark.setValueForMode(semDarkCollModeId, figma.variables.createVariableAlias(darkPrim2));
+        vars++;
       }
 
       vars++;
