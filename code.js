@@ -438,16 +438,12 @@ async function generateBorderRadius(cfg, cache) {
 // ── typography ────────────────────────────────────────────────────────────────
 
 async function generateTypography(cfg, cache) {
-  if (cfg.generateStyles === false && cfg.generateVars === false) return { vars: 0, styles: 0 };
-
   var fonts    = cfg.fonts || [
     { name: 'Geist', ratio: 'minor-third', uses: { Heading: true, Title: true } },
     { name: 'Inter', ratio: 'minor-third', uses: { Body: true, Label: true, Caption: true, Button: true, Link: true } },
   ];
   var preset   = cfg.size || 'standard';
   var overwrite = cfg.overwrite !== false;
-  var doVars   = cfg.generateVars   !== false;
-  var doStyles = cfg.generateStyles !== false;
 
   var sizeMaps = {
     compact: {
@@ -499,31 +495,26 @@ async function generateTypography(cfg, cache) {
     return slist.map(function(pair) { return [pair[0], Math.round(pair[1] * scale)]; });
   }
 
-  var typoColl   = doVars ? getOrCreateCollection('Typography', cache) : null;
-  var typoModeId = typoColl ? typoColl.modes[0].modeId : null;
-  var existingStyles = doStyles ? cache.textStyles : [];
+  var typoColl   = getOrCreateCollection('Typography', cache);
+  var typoModeId = typoColl.modes[0].modeId;
+  var existingStyles = cache.textStyles;
   var totalVars = 0;
   var totalStyles = 0;
 
   // Single shared letter-spacing variable — always 0
-  var lsVar = null;
-  if (doVars) {
-    lsVar = getOrCreateVariable('letter-spacing/none', typoColl, 'FLOAT', overwrite, cache);
-    applyVar(lsVar, typoModeId, 0, overwrite);
-    totalVars++;
-  }
+  var lsVar = getOrCreateVariable('letter-spacing/none', typoColl, 'FLOAT', overwrite, cache);
+  applyVar(lsVar, typoModeId, 0, overwrite);
+  totalVars++;
 
   // Pre-load every font already used by existing text styles so we can modify them
-  if (doStyles) {
-    var seenFonts = {};
-    for (var xi = 0; xi < existingStyles.length; xi++) {
-      var xf = existingStyles[xi].fontName;
-      if (xf && xf.family) {
-        var fkey = xf.family + '|' + xf.style;
-        if (!seenFonts[fkey]) {
-          seenFonts[fkey] = true;
-          try { await figma.loadFontAsync(xf); } catch (e) {}
-        }
+  var seenFonts = {};
+  for (var xi = 0; xi < existingStyles.length; xi++) {
+    var xf = existingStyles[xi].fontName;
+    if (xf && xf.family) {
+      var fkey = xf.family + '|' + xf.style;
+      if (!seenFonts[fkey]) {
+        seenFonts[fkey] = true;
+        try { await figma.loadFontAsync(xf); } catch (e) {}
       }
     }
   }
@@ -535,11 +526,9 @@ async function generateTypography(cfg, cache) {
     var cats   = Object.keys(uses).filter(function(k) { return uses[k] && sizes[k]; });
 
     // Pre-load every weight this family will need so existing styles can be modified
-    if (doStyles) {
-      var allWeights = ['Regular', 'Medium', 'Semi Bold'];
-      for (var wi = 0; wi < allWeights.length; wi++) {
-        try { await figma.loadFontAsync({ family: family, style: allWeights[wi] }); } catch (e) {}
-      }
+    var allWeights = ['Regular', 'Medium', 'Semi Bold'];
+    for (var wi = 0; wi < allWeights.length; wi++) {
+      try { await figma.loadFontAsync({ family: family, style: allWeights[wi] }); } catch (e) {}
     }
 
     for (var ki = 0; ki < cats.length; ki++) {
@@ -548,28 +537,23 @@ async function generateTypography(cfg, cache) {
       var lhPct  = lineHeightFor[cat] || 140;
 
       // per-category variables
-      var ffVar = null;
-      if (doVars) {
-        ffVar = getOrCreateVariable('font-family/' + cat, typoColl, 'STRING', overwrite, cache);
-        applyVar(ffVar, typoModeId, family, overwrite);
-        totalVars++;
+      var ffVar = getOrCreateVariable('font-family/' + cat, typoColl, 'STRING', overwrite, cache);
+      applyVar(ffVar, typoModeId, family, overwrite);
+      totalVars++;
 
-        var wNum = weight === 'Semi Bold' ? 600 : weight === 'Medium' ? 500 : 400;
-        var fwVar = getOrCreateVariable('font-weight/' + cat, typoColl, 'FLOAT', overwrite, cache);
-        applyVar(fwVar, typoModeId, wNum, overwrite);
-        totalVars++;
-      }
+      var wNum = weight === 'Semi Bold' ? 600 : weight === 'Medium' ? 500 : 400;
+      var fwVar = getOrCreateVariable('font-weight/' + cat, typoColl, 'FLOAT', overwrite, cache);
+      applyVar(fwVar, typoModeId, wNum, overwrite);
+      totalVars++;
 
       // load font once per category
-      if (doStyles) {
+      try {
+        await figma.loadFontAsync({ family: family, style: weight });
+      } catch (e) {
         try {
-          await figma.loadFontAsync({ family: family, style: weight });
-        } catch (e) {
-          try {
-            await figma.loadFontAsync({ family: family, style: 'Regular' });
-            weight = 'Regular';
-          } catch (e2) { continue; }
-        }
+          await figma.loadFontAsync({ family: family, style: 'Regular' });
+          weight = 'Regular';
+        } catch (e2) { continue; }
       }
 
       var slist = applyRatio(sizes[cat], cat, font.ratio);
@@ -579,49 +563,38 @@ async function generateTypography(cfg, cache) {
         var base      = cat + '/' + sName;
         var styleName = cat + '/' + sName;
 
-        // per-size variables
-        var fsVar = null;
-        var lhVar = null;
-        if (doVars) {
-          fsVar = getOrCreateVariable('font-size/' + base, typoColl, 'FLOAT', overwrite, cache);
-          applyVar(fsVar, typoModeId, px, overwrite);
-          totalVars++;
+        var fsVar = getOrCreateVariable('font-size/' + base, typoColl, 'FLOAT', overwrite, cache);
+        applyVar(fsVar, typoModeId, px, overwrite);
+        totalVars++;
 
-          lhVar = getOrCreateVariable('line-height/' + base, typoColl, 'FLOAT', overwrite, cache);
-          applyVar(lhVar, typoModeId, Math.round(px * lhPct / 100), overwrite);
-          totalVars++;
+        var lhVar = getOrCreateVariable('line-height/' + base, typoColl, 'FLOAT', overwrite, cache);
+        applyVar(lhVar, typoModeId, Math.round(px * lhPct / 100), overwrite);
+        totalVars++;
+
+        var style = null;
+        for (var ei = 0; ei < existingStyles.length; ei++) {
+          if (existingStyles[ei].name === styleName) { style = existingStyles[ei]; break; }
         }
-
-        // create / update text style
-        if (doStyles) {
-          var style = null;
-          for (var ei = 0; ei < existingStyles.length; ei++) {
-            if (existingStyles[ei].name === styleName) { style = existingStyles[ei]; break; }
-          }
-          if (!style) { style = figma.createTextStyle(); cache.textStyles.push(style); }
-          if (style.fontName) {
-            try { await figma.loadFontAsync(style.fontName); } catch (e) {}
-          }
-          totalStyles++;
-
-          style.name           = styleName;
-          style.fontSize       = px;
-          style.lineHeight     = { value: lhPct, unit: 'PERCENT' };
-          style.letterSpacing  = { value: 0, unit: 'PERCENT' };
-          style.textDecoration = cat === 'Link' ? 'UNDERLINE' : 'NONE';
-
-          try { style.fontName = { family: family, style: weight }; }
-          catch (e) { style.fontName = { family: family, style: 'Regular' }; }
-
-          // bind variables to the style
-          if (doVars) {
-            try { style.setBoundVariable('fontFamily',    ffVar); } catch (e) {}
-            try { style.setBoundVariable('fontSize',      fsVar); } catch (e) {}
-            try { style.setBoundVariable('lineHeight',    lhVar); } catch (e) {}
-            try { style.setBoundVariable('letterSpacing', lsVar); } catch (e) {}
-            try { style.setBoundVariable('fontWeight',    fwVar); } catch (e) {}
-          }
+        if (!style) { style = figma.createTextStyle(); cache.textStyles.push(style); }
+        if (style.fontName) {
+          try { await figma.loadFontAsync(style.fontName); } catch (e) {}
         }
+        totalStyles++;
+
+        style.name           = styleName;
+        style.fontSize       = px;
+        style.lineHeight     = { value: lhPct, unit: 'PERCENT' };
+        style.letterSpacing  = { value: 0, unit: 'PERCENT' };
+        style.textDecoration = cat === 'Link' ? 'UNDERLINE' : 'NONE';
+
+        try { style.fontName = { family: family, style: weight }; }
+        catch (e) { style.fontName = { family: family, style: 'Regular' }; }
+
+        try { style.setBoundVariable('fontFamily',    ffVar); } catch (e) {}
+        try { style.setBoundVariable('fontSize',      fsVar); } catch (e) {}
+        try { style.setBoundVariable('lineHeight',    lhVar); } catch (e) {}
+        try { style.setBoundVariable('letterSpacing', lsVar); } catch (e) {}
+        try { style.setBoundVariable('fontWeight',    fwVar); } catch (e) {}
       }
     }
   }
@@ -791,10 +764,12 @@ async function generateStylesheet(modules, moduleConfigs, cache) {
     if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
   } catch(e) { throw new Error('sheet-page: ' + e.message); }
 
-  // Switch to the stylesheet page so textStyleId works (requires currentPage match)
+  // Switch to the stylesheet page before building frames
   var _prevPage = figma.currentPage;
   try { figma.currentPage = page; } catch(e) {}
 
+  // Load page before accessing children (required for dynamic-page documentAccess)
+  try { await page.loadAsync(); } catch(e) {}
   // Clear children: snapshot count first so re-reading page.children mid-loop can't throw
   try {
     var _n = page.children ? page.children.length : 0;
@@ -1258,7 +1233,7 @@ async function ssTypography(page, xOff, cfg, cache) {
       pv.x = cx; pv.y = y;
       frame.appendChild(pv);
       try {
-        pv.textStyleId = style.id;
+        await pv.setTextStyleIdAsync(style.id);
       } catch(e2) {
         pv.fontName = fn;
         pv.fontSize = style.fontSize || 16;
@@ -1362,7 +1337,7 @@ async function ssElevation(page, xOff, cache) {
     frame.appendChild(card);
     // Apply effect style directly (node must be in document tree first)
     try {
-      card.effectStyleId = style.id;
+      await card.setEffectStyleIdAsync(style.id);
     } catch(e) {
       // Fallback: copy raw effect values
       var cleanEffects = (style.effects || []).map(function(eff) {
