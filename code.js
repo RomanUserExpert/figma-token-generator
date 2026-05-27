@@ -42,6 +42,27 @@ figma.ui.onmessage = async (msg) => {
     families.sort();
     figma.ui.postMessage({ type: 'fonts-list', families: families });
   }
+  if (msg.type === 'update-stylesheet') {
+    try {
+      var ssCache = {
+        collections:  (await figma.variables.getLocalVariableCollectionsAsync()) || [],
+        vars: {
+          'COLOR':  (await figma.variables.getLocalVariablesAsync('COLOR'))  || [],
+          'FLOAT':  (await figma.variables.getLocalVariablesAsync('FLOAT'))  || [],
+          'STRING': (await figma.variables.getLocalVariablesAsync('STRING')) || [],
+        },
+        textStyles:   (await figma.getLocalTextStylesAsync())   || [],
+        effectStyles: (await figma.getLocalEffectStylesAsync()) || [],
+      };
+      await generateStylesheet(msg.modules, msg.moduleConfigs, ssCache, {
+        pageName:       msg.pageName,
+        useCurrentPage: msg.useCurrentPage,
+      });
+      figma.ui.postMessage({ type: 'stylesheet-updated' });
+    } catch (err) {
+      figma.ui.postMessage({ type: 'stylesheet-error', message: err.message + '\n' + (err.stack || '') });
+    }
+  }
   if (msg.type === 'clear-all') {
     try {
       const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -50,13 +71,15 @@ figma.ui.onmessage = async (msg) => {
       for (const s of textStyles) s.remove();
       const effectStyles = await figma.getLocalEffectStylesAsync();
       for (const s of effectStyles) s.remove();
-      // Remove the Token Stylesheet page so it doesn't linger with broken variable references
+      // Remove the stylesheet page — find by pluginData first, name as legacy fallback
       try {
-        const pages = figma.root.children;
-        for (var pi = 0; pi < pages.length; pi++) {
-          if (pages[pi].name === 'Token Stylesheet') {
-            // Figma requires at least one page — only remove if more than one page exists
-            if (figma.root.children.length > 1) pages[pi].remove();
+        var _sp = figma.root.children;
+        for (var pi = 0; pi < _sp.length; pi++) {
+          var isSheet = false;
+          try { isSheet = _sp[pi].getPluginData('isTokenStylesheet') === 'true'; } catch(e) {}
+          if (!isSheet) isSheet = _sp[pi].name === 'Token Stylesheet';
+          if (isSheet) {
+            if (figma.root.children.length > 1) _sp[pi].remove();
             break;
           }
         }
