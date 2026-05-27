@@ -934,7 +934,7 @@ const MODULE_CONFIGS = {
       parent.postMessage({
         pluginMessage: {
           type: 'update-stylesheet',
-          modules:       (window.__pluginState || {}).modules       || {},
+          modules:       { 'Colors': true, 'Spacing': true, 'Typography': true, 'Border Radius': true, 'Elevation': true },
           moduleConfigs: (window.__pluginState || {}).moduleConfigs || {},
           colors:        (window.__pluginState || {}).colors        || {},
           pageName:      pageName.trim(),
