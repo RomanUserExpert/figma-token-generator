@@ -1128,70 +1128,58 @@ function ModuleItem({ name, checked, isActive, icon, onToggle, onClick }) {
   );
 }
 
-function ClearAllButton() {
-  const [stage, setStage] = React.useState('idle'); // idle | confirm1 | confirm2
+function ClearAllButton({ activeModule }) {
+  const [confirm, setConfirm] = React.useState(false);
   const [done, setDone] = React.useState(false);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => { setConfirm(false); }, [activeModule]);
+
+  React.useEffect(() => {
+    if (!confirm) return;
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setConfirm(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [confirm]);
 
   React.useEffect(() => {
     const handler = e => {
       const msg = e.data?.pluginMessage;
-      if (msg?.type === 'clear-done') { setDone(true); setStage('idle'); setTimeout(() => setDone(false), 2000); }
+      if (msg?.type === 'clear-done') { setDone(true); setConfirm(false); setTimeout(() => setDone(false), 2000); }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  if (done) return (
-    <div style={{ padding: '10px 12px', borderTop: '1px solid #E0DEDD', textAlign: 'center', fontSize: 10, color: '#22C55E', letterSpacing: '0.05em' }}>
-      Cleared
-    </div>
-  );
-
-  if (stage === 'idle') return (
-    <div style={{ padding: '10px 12px', borderTop: '1px solid #E0DEDD' }}>
-      <button onClick={() => setStage('confirm1')} style={{
-        width: '100%', padding: '5px 0', background: 'transparent', border: '1px solid #EDCDC5',
-        borderRadius: 4, color: '#C04040', fontSize: 10, cursor: 'pointer', letterSpacing: '0.05em',
-        fontFamily: 'inherit', transition: 'all 0.15s'
-      }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = '#D05050'; e.currentTarget.style.color = '#EF4444'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = '#EDCDC5'; e.currentTarget.style.color = '#C04040'; }}
-      >Clear all</button>
-    </div>
-  );
-
-  if (stage === 'confirm1') return (
-    <div style={{ padding: '10px 12px', borderTop: '1px solid #E0DEDD' }}>
-      <div style={{ fontSize: 10, color: '#666666', marginBottom: 6, textAlign: 'center' }}>Delete all variables & styles?</div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={() => setStage('idle')} style={{
-          flex: 1, padding: '4px 0', background: '#FFFFFF', border: '1px solid #D4D3D1',
-          borderRadius: 4, color: '#666666', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
-        }}>Cancel</button>
-        <button onClick={() => setStage('confirm2')} style={{
-          flex: 1, padding: '4px 0', background: '#FDE8E8', border: '1px solid #E87070',
-          borderRadius: 4, color: '#EF4444', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
-        }}>Delete</button>
-      </div>
-    </div>
-  );
-
   return (
-    <div style={{ padding: '10px 12px', borderTop: '1px solid #E0DEDD' }}>
-      <div style={{ fontSize: 10, color: '#EF4444', marginBottom: 6, textAlign: 'center', fontWeight: 600 }}>This cannot be undone.</div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={() => setStage('idle')} style={{
-          flex: 1, padding: '4px 0', background: '#FFFFFF', border: '1px solid #D4D3D1',
-          borderRadius: 4, color: '#666666', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
-        }}>Cancel</button>
-        <button onClick={() => {
-          setStage('idle');
-          parent.postMessage({ pluginMessage: { type: 'clear-all' } }, '*');
-        }} style={{
-          flex: 1, padding: '4px 0', background: '#EF4444', border: '1px solid #EF4444',
-          borderRadius: 4, color: '#FFF', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600
-        }}>Yes, delete all</button>
+    <div ref={ref} style={{ padding: '12px 12px 10px', borderTop: '1px solid #E0DEDD' }}>
+      <div style={{ fontSize: 11, fontWeight: 500, color: '#1A1A1A', marginBottom: 3 }}>Clear all file</div>
+      <div style={{ fontSize: 10, color: '#888888', lineHeight: 1.4, marginBottom: 8 }}>
+        This feature will remove existing styles and variables from this Figma file
       </div>
+      {done ? (
+        <span style={{ fontSize: 10, color: '#22C55E' }}>Cleared</span>
+      ) : confirm ? (
+        <div>
+          <div style={{ fontSize: 10, color: '#555555', marginBottom: 5 }}>Are you sure?</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => { setConfirm(false); parent.postMessage({ pluginMessage: { type: 'clear-all' } }, '*'); }} style={{
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+              fontSize: 10, color: '#E05F03', fontFamily: 'inherit'
+            }}>Yes, clear</button>
+            <span style={{ color: '#D4D3D1', fontSize: 10, userSelect: 'none' }}>·</span>
+            <button onClick={() => setConfirm(false)} style={{
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+              fontSize: 10, color: '#888888', fontFamily: 'inherit'
+            }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setConfirm(true)} style={{
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          fontSize: 10, color: '#E05F03', fontFamily: 'inherit'
+        }}>Clear all</button>
+      )}
     </div>
   );
 }
@@ -1265,7 +1253,7 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule, st
       />
 
       <div style={{ flex: 1 }} />
-      <ClearAllButton />
+      <ClearAllButton activeModule={activeModule} />
     </div>
   );
 }
