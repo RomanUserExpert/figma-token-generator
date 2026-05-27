@@ -130,9 +130,6 @@
   <div id="main-area">
     <!-- Module sidebar -->
     <div class="plugin-sidebar">
-      <div class="plugin-sidebar-header">
-        <span>Token Modules</span>
-      </div>
       <div id="modules-sidebar"></div>
     </div>
 
@@ -903,6 +900,146 @@ const MODULE_CONFIGS = {
     );
   },
 
+  'Stylesheet': function StylesheetPanel({ config, setConfig }) {
+    const [status, setStatus] = React.useState('idle'); // idle | updating | done | error
+    const [errorMsg, setErrorMsg] = React.useState('');
+    const pageName = config.pageName !== undefined ? config.pageName : 'Token Stylesheet';
+    const useCurrentPage = config.useCurrentPage || false;
+    const nameEmpty = !pageName.trim();
+    const accent = '#E05F03';
+
+    React.useEffect(() => {
+      const handler = (e) => {
+        const msg = e.data?.pluginMessage;
+        if (!msg) return;
+        if (msg.type === 'stylesheet-updated') {
+          setStatus('done');
+          setTimeout(() => setStatus('idle'), 3000);
+        }
+        if (msg.type === 'stylesheet-error') {
+          setStatus('error');
+          setErrorMsg(msg.message || 'Something went wrong');
+        }
+      };
+      window.addEventListener('message', handler);
+      return () => window.removeEventListener('message', handler);
+    }, []);
+
+    const blocked = status === 'updating' || (!useCurrentPage && nameEmpty);
+
+    const handleUpdate = () => {
+      if (blocked) return;
+      setStatus('updating');
+      setErrorMsg('');
+      parent.postMessage({
+        pluginMessage: {
+          type: 'update-stylesheet',
+          modules:       (window.__pluginState || {}).modules       || {},
+          moduleConfigs: (window.__pluginState || {}).moduleConfigs || {},
+          colors:        (window.__pluginState || {}).colors        || {},
+          pageName:      pageName.trim(),
+          useCurrentPage: useCurrentPage,
+        }
+      }, '*');
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#666666', textTransform: 'uppercase', marginBottom: 12 }}>Page Settings</div>
+
+        {/* Target radio */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: '#555555', marginBottom: 8 }}>Target</div>
+          {[
+            { val: false, label: 'Find or create page by name' },
+            { val: true,  label: 'Use current Figma page' },
+          ].map(opt => (
+            <label key={String(opt.val)}
+              onClick={() => setConfig(p => ({ ...p, useCurrentPage: opt.val }))}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7, cursor: 'pointer', userSelect: 'none' }}>
+              <div style={{
+                width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                border: `2px solid ${useCurrentPage === opt.val ? accent : '#D4D3D1'}`,
+                background: '#FFFFFF',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'border-color 0.15s',
+              }}>
+                {useCurrentPage === opt.val && (
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: accent }} />
+                )}
+              </div>
+              <span style={{ fontSize: 11, color: '#555555' }}>{opt.label}</span>
+            </label>
+          ))}
+          {useCurrentPage && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 2,
+              padding: '5px 8px', borderRadius: 4, background: '#FFF8F0', border: '1px solid #FDD5A8' }}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+                <circle cx="5.5" cy="5.5" r="4.5" stroke={accent} strokeWidth="1"/>
+                <path d="M5.5 3.5v3" stroke={accent} strokeWidth="1.1" strokeLinecap="round"/>
+                <circle cx="5.5" cy="8" r="0.5" fill={accent}/>
+              </svg>
+              <span style={{ fontSize: 10, color: '#92400E', lineHeight: 1.5 }}>
+                Frames will be added to your current Figma page.
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Page name */}
+        <div style={{ marginBottom: 14, opacity: useCurrentPage ? 0.4 : 1, transition: 'opacity 0.15s', pointerEvents: useCurrentPage ? 'none' : 'auto' }}>
+          <div style={{ fontSize: 12, color: '#555555', marginBottom: 5 }}>Page name</div>
+          <TextInput value={pageName} onChange={v => setConfig(p => ({ ...p, pageName: v }))} />
+          {!useCurrentPage && nameEmpty && <div style={{ fontSize: 10, color: '#EF4444', marginTop: 3 }}>Name cannot be empty</div>}
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: '#E0DEDD', marginBottom: 14 }} />
+
+        {/* Update button */}
+        <button
+          onClick={handleUpdate}
+          disabled={blocked}
+          style={{
+            width: '100%', height: 34,
+            background: accent, color: '#fff',
+            opacity: blocked ? 0.5 : 1,
+            border: 'none', borderRadius: 4,
+            fontSize: 12, fontWeight: 600, letterSpacing: '0.01em',
+            cursor: blocked ? 'default' : 'pointer',
+            fontFamily: 'inherit', transition: 'opacity 0.15s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+          }}
+        >
+          {status === 'updating' ? (
+            <>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14" strokeDashoffset="5" strokeLinecap="round"/>
+              </svg>
+              Updating…
+            </>
+          ) : 'Update stylesheet'}
+        </button>
+
+        {/* Status line */}
+        <div style={{ height: 16, marginTop: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {status === 'done' && (
+            <span style={{ fontSize: 11, color: '#4CAF7D', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <circle cx="5.5" cy="5.5" r="5" stroke="#4CAF7D" strokeWidth="1"/>
+                <path d="M3 5.5L4.8 7.2L8 4" stroke="#4CAF7D" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Stylesheet updated
+            </span>
+          )}
+          {status === 'error' && (
+            <pre style={{ fontSize: 10, color: '#EF4444', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 80, overflowY: 'auto' }}>{errorMsg}</pre>
+          )}
+        </div>
+      </div>
+    );
+  },
+
 };
 
 // ── main plugin UI ────────────────────────────────────────────────────────────
@@ -1059,7 +1196,7 @@ function ClearAllButton() {
   );
 }
 
-function ModulesSidebar({ modules, setModules, activeModule, setActiveModule }) {
+function ModulesSidebar({ modules, setModules, activeModule, setActiveModule, stylesheetOn, setStylesheetOn }) {
   const moduleIcons = {
     'Colors': (
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -1089,43 +1226,23 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule }) 
         <rect x="4" y="1" width="7" height="6" rx="1" stroke="currentColor" strokeWidth="1"/>
       </svg>
     ),
+    'Stylesheet': (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <rect x="1.5" y="1" width="9" height="10" rx="1.5" stroke="currentColor" strokeWidth="1"/>
+        <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      </svg>
+    ),
   };
-
-  const allChecked = Object.values(modules).every(Boolean);
-  const someChecked = Object.values(modules).some(Boolean);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #E0DEDD' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-          <div
-            onClick={() => {
-              const next = !allChecked;
-              setModules(prev => Object.fromEntries(Object.keys(prev).map(k => [k, next])));
-            }}
-            style={{
-              width: 14, height: 14, borderRadius: 2, flexShrink: 0,
-              border: (allChecked || someChecked) ? 'none' : '1px solid #D4D3D1',
-              background: (allChecked || someChecked) ? '#E05F03' : '#FFFFFF',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-            }}
-          >
-            {allChecked && (
-              <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-            {!allChecked && someChecked && (
-              <svg width="8" height="2" viewBox="0 0 8 2" fill="none">
-                <path d="M1 1h6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            )}
-          </div>
-          <span style={{ fontSize: 11, color: '#666666', fontWeight: 500 }}>Select all</span>
-        </label>
+
+      {/* ── MODULES section ── */}
+      <div style={{ padding: '8px 12px 4px' }}>
+        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Modules</div>
       </div>
 
-      <div style={{ flex: 1, padding: '6px 0' }}>
+      <div style={{ padding: '2px 0 6px', borderBottom: '1px solid #E0DEDD' }}>
         {Object.entries(modules).map(([name, checked]) => (
           <ModuleItem key={name} name={name} checked={checked} isActive={activeModule === name}
             icon={moduleIcons[name]}
@@ -1133,6 +1250,21 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule }) 
             onClick={() => setActiveModule(name)} />
         ))}
       </div>
+
+      {/* ── OTHER section ── */}
+      <div style={{ padding: '8px 12px 4px' }}>
+        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Other</div>
+      </div>
+      <ModuleItem
+        name="Stylesheet"
+        checked={stylesheetOn}
+        isActive={activeModule === 'Stylesheet'}
+        icon={moduleIcons['Stylesheet']}
+        onToggle={e => { e.stopPropagation(); setStylesheetOn(!stylesheetOn); }}
+        onClick={() => setActiveModule('Stylesheet')}
+      />
+
+      <div style={{ flex: 1 }} />
       <ClearAllButton />
     </div>
   );
@@ -1202,9 +1334,11 @@ function useSharedGenerate() {
 
 function FooterApp() {
   const [gen, setGen] = useSharedGenerate();
+  const [modules] = useSharedModules();
   const [btnHov, setBtnHov] = useState(false);
   const [btnActive, setBtnActive] = useState(false);
   const accent = '#E05F03';
+  const allModulesOff = Object.values(modules).every(v => !v);
 
   // Listen for responses from code.js
   React.useEffect(() => {
@@ -1219,7 +1353,7 @@ function FooterApp() {
   }, []);
 
   const handleGenerate = () => {
-    if (gen.status === 'generating') return;
+    if (gen.status === 'generating' || allModulesOff) return;
     setGen(p => ({ ...p, status: 'generating' }));
     parent.postMessage({
       pluginMessage: {
@@ -1231,33 +1365,11 @@ function FooterApp() {
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Toggle on={gen.overwrite} onChange={() => setGen(p => ({ ...p, overwrite: !p.overwrite }))} />
-          <div>
-            <span style={{ fontSize: 12, color: '#555555' }}>Overwrite existing</span>
-            <div style={{ fontSize: 10, color: '#777777', marginTop: 1 }}>Replace variables with same name</div>
-          </div>
-        </div>
-        <div onClick={() => setGen(p => ({ ...p, stylesheet: !(p.stylesheet !== false) }))}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: 12, color: '#555555' }}>Stylesheet</span>
-            <div style={{ fontSize: 10, color: '#777777', marginTop: 1 }}>Visual token preview in Figma</div>
-          </div>
-          <div style={{
-            width: 14, height: 14, borderRadius: 2, flexShrink: 0,
-            border: gen.stylesheet !== false ? 'none' : '1px solid #D4D3D1',
-            background: gen.stylesheet !== false ? '#E05F03' : '#FFFFFF',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background 0.1s',
-          }}>
-            {gen.stylesheet !== false && (
-              <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+        <Toggle on={gen.overwrite} onChange={() => setGen(p => ({ ...p, overwrite: !p.overwrite }))} />
+        <div style={{ marginLeft: 8 }}>
+          <span style={{ fontSize: 12, color: '#555555' }}>Overwrite existing</span>
+          <div style={{ fontSize: 10, color: '#777777', marginTop: 1 }}>Replace variables with same name</div>
         </div>
       </div>
       <button
@@ -1266,14 +1378,15 @@ function FooterApp() {
         onMouseLeave={() => { setBtnHov(false); setBtnActive(false); }}
         onMouseDown={() => setBtnActive(true)}
         onMouseUp={() => setBtnActive(false)}
-        disabled={gen.status === 'generating'}
+        disabled={gen.status === 'generating' || allModulesOff}
         style={{
           width: '100%', height: 34,
           background: gen.status === 'generating' ? '#F8DFC9' : btnActive ? '#BF4800' : btnHov ? '#F07020' : accent,
           color: gen.status === 'generating' ? '#B85A20' : '#fff',
+          opacity: allModulesOff ? 0.5 : 1,
           border: 'none', borderRadius: 4,
           fontSize: 12, fontWeight: 600, letterSpacing: '0.01em',
-          cursor: gen.status === 'generating' ? 'default' : 'pointer',
+          cursor: gen.status === 'generating' || allModulesOff ? 'default' : 'pointer',
           fontFamily: 'inherit',
           transition: 'background 0.15s, color 0.15s',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7
@@ -1313,7 +1426,17 @@ function FooterApp() {
 function SidebarApp() {
   const [modules, setModules] = useSharedModules();
   const [activeModule, setActiveModule] = useSharedNav();
-  return <ModulesSidebar modules={modules} setModules={setModules} activeModule={activeModule} setActiveModule={setActiveModule} />;
+  const [gen, setGen] = useSharedGenerate();
+  return (
+    <ModulesSidebar
+      modules={modules}
+      setModules={setModules}
+      activeModule={activeModule}
+      setActiveModule={setActiveModule}
+      stylesheetOn={gen.stylesheet !== false}
+      setStylesheetOn={on => setGen(p => ({ ...p, stylesheet: on }))}
+    />
+  );
 }
 
 function PluginApp() {
