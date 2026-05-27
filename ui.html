@@ -45,8 +45,16 @@
     border-right: 1px solid #E0DEDD;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden;
     flex-shrink: 0;
+  }
+
+  #modules-sidebar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .plugin-sidebar-header {
@@ -1152,33 +1160,49 @@ function ClearAllButton({ activeModule }) {
   }, []);
 
   return (
-    <div ref={ref} style={{ padding: '12px 12px 10px', borderTop: '1px solid #E0DEDD' }}>
-      <div style={{ fontSize: 11, fontWeight: 500, color: '#1A1A1A', marginBottom: 3 }}>Clear all file</div>
-      <div style={{ fontSize: 10, color: '#888888', lineHeight: 1.4, marginBottom: 8 }}>
-        This feature will remove existing styles and variables from this Figma file
-      </div>
+    <div ref={ref} style={{ padding: '10px 12px 12px' }}>
       {done ? (
-        <span style={{ fontSize: 10, color: '#22C55E' }}>Cleared</span>
+        <>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#22C55E', marginBottom: 3 }}>Cleared</div>
+          <div style={{ fontSize: 11, color: '#888888', lineHeight: 1.4, marginBottom: 8 }}>All variables and styles removed.</div>
+          <div style={{ height: 22 }} />
+        </>
       ) : confirm ? (
-        <div>
-          <div style={{ fontSize: 10, color: '#555555', marginBottom: 5 }}>Are you sure?</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#1A1A1A', marginBottom: 3 }}>Are you sure?</div>
+          <div style={{ fontSize: 11, color: '#888888', lineHeight: 1.4, marginBottom: 8 }}>This will permanently delete all variables and styles.</div>
+          <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => { setConfirm(false); parent.postMessage({ pluginMessage: { type: 'clear-all' } }, '*'); }} style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              fontSize: 10, color: '#E05F03', fontFamily: 'inherit'
-            }}>Yes, clear</button>
-            <span style={{ color: '#D4D3D1', fontSize: 10, userSelect: 'none' }}>·</span>
+              flex: 1, padding: '5px 0', background: 'transparent', border: '1px solid #EDCDC5',
+              borderRadius: 4, color: '#C04040', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s'
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#D05050'; e.currentTarget.style.color = '#EF4444'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#EDCDC5'; e.currentTarget.style.color = '#C04040'; }}
+            >Yes, clear</button>
             <button onClick={() => setConfirm(false)} style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              fontSize: 10, color: '#888888', fontFamily: 'inherit'
-            }}>Cancel</button>
+              flex: 1, padding: '5px 0', background: 'transparent', border: '1px solid #D4D3D1',
+              borderRadius: 4, color: '#888888', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s'
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#AAAAAA'; e.currentTarget.style.color = '#555555'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#D4D3D1'; e.currentTarget.style.color = '#888888'; }}
+            >Cancel</button>
           </div>
-        </div>
+        </>
       ) : (
-        <button onClick={() => setConfirm(true)} style={{
-          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-          fontSize: 10, color: '#E05F03', fontFamily: 'inherit'
-        }}>Clear all</button>
+        <>
+          <div style={{ fontSize: 12, fontWeight: 500, color: '#1A1A1A', marginBottom: 3 }}>Clear all tokens</div>
+          <div style={{ fontSize: 11, color: '#888888', lineHeight: 1.4, marginBottom: 8 }}>
+            Permanently deletes all variables and styles. Cannot be undone.
+          </div>
+          <button onClick={() => setConfirm(true)} style={{
+            width: '100%', padding: '5px 0', background: 'transparent', border: '1px solid #EDCDC5',
+            borderRadius: 4, color: '#C04040', fontSize: 10, cursor: 'pointer',
+            fontFamily: 'inherit', transition: 'all 0.15s'
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#D05050'; e.currentTarget.style.color = '#EF4444'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#EDCDC5'; e.currentTarget.style.color = '#C04040'; }}
+          >Clear all</button>
+        </>
       )}
     </div>
   );
@@ -1223,38 +1247,40 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule, st
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
+    <React.Fragment>
+      <div style={{ flex: 1, overflowY: 'auto', fontFamily: "'Inter', system-ui, sans-serif", WebkitFontSmoothing: 'antialiased' }}>
 
-      {/* ── MODULES section ── */}
-      <div style={{ padding: '8px 12px 4px' }}>
-        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Modules</div>
+        {/* ── MODULES section ── */}
+        <div style={{ padding: '8px 12px 4px' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Modules</div>
+        </div>
+
+        <div style={{ padding: '2px 0 6px', borderBottom: '1px solid #E0DEDD' }}>
+          {Object.entries(modules).map(([name, checked]) => (
+            <ModuleItem key={name} name={name} checked={checked} isActive={activeModule === name}
+              icon={moduleIcons[name]}
+              onToggle={e => { e.stopPropagation(); setModules(prev => ({ ...prev, [name]: !prev[name] })); }}
+              onClick={() => setActiveModule(name)} />
+          ))}
+        </div>
+
+        {/* ── OTHER section ── */}
+        <div style={{ padding: '8px 12px 4px' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Other</div>
+        </div>
+        <ModuleItem
+          name="Stylesheet"
+          checked={stylesheetOn}
+          isActive={activeModule === 'Stylesheet'}
+          icon={moduleIcons['Stylesheet']}
+          onToggle={e => { e.stopPropagation(); setStylesheetOn(!stylesheetOn); }}
+          onClick={() => setActiveModule('Stylesheet')}
+        />
       </div>
 
-      <div style={{ padding: '2px 0 6px', borderBottom: '1px solid #E0DEDD' }}>
-        {Object.entries(modules).map(([name, checked]) => (
-          <ModuleItem key={name} name={name} checked={checked} isActive={activeModule === name}
-            icon={moduleIcons[name]}
-            onToggle={e => { e.stopPropagation(); setModules(prev => ({ ...prev, [name]: !prev[name] })); }}
-            onClick={() => setActiveModule(name)} />
-        ))}
-      </div>
-
-      {/* ── OTHER section ── */}
-      <div style={{ padding: '8px 12px 4px' }}>
-        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Other</div>
-      </div>
-      <ModuleItem
-        name="Stylesheet"
-        checked={stylesheetOn}
-        isActive={activeModule === 'Stylesheet'}
-        icon={moduleIcons['Stylesheet']}
-        onToggle={e => { e.stopPropagation(); setStylesheetOn(!stylesheetOn); }}
-        onClick={() => setActiveModule('Stylesheet')}
-      />
-
-      <div style={{ flex: 1 }} />
+      <div style={{ borderTop: '1px solid #E0DEDD' }} />
       <ClearAllButton activeModule={activeModule} />
-    </div>
+    </React.Fragment>
   );
 }
 
