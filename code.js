@@ -1,5 +1,15 @@
 figma.showUI(__html__, { width: 560, height: 760, title: 'UI Token Starter Pack' });
 
+// Read saved stylesheet page name from clientStorage and seed the UI
+(async function() {
+  try {
+    var savedPageName = await figma.clientStorage.getAsync('stylesheetPageName');
+    figma.ui.postMessage({ type: 'stylesheet-init', pageName: savedPageName || 'Token Stylesheet' });
+  } catch(e) {
+    figma.ui.postMessage({ type: 'stylesheet-init', pageName: 'Token Stylesheet' });
+  }
+})();
+
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'check-plan') {
     var probe = null;
@@ -131,7 +141,11 @@ async function generateTokens(payload) {
 
   if (payload.stylesheet) {
     try {
-      await generateStylesheet(modules, moduleConfigs, cache);
+      var ssCfg = moduleConfigs['Stylesheet'] || {};
+      await generateStylesheet(modules, moduleConfigs, cache, {
+        pageName:       ssCfg.pageName,
+        useCurrentPage: ssCfg.useCurrentPage,
+      });
     } catch (e) { e.message = '[Stylesheet] ' + e.message; throw e; }
   }
 
@@ -754,54 +768,106 @@ async function generateElevation(cfg, cache) {
 
 // ── stylesheet ────────────────────────────────────────────────────────────────
 
-async function generateStylesheet(modules, moduleConfigs, cache) {
-  var page = null;
-  try {
-    var _pages = figma.root.children;
-    for (var pi = 0; pi < _pages.length; pi++) {
-      if (_pages[pi].name === 'Token Stylesheet') { page = _pages[pi]; break; }
-    }
-    if (!page) { page = figma.createPage(); page.name = 'Token Stylesheet'; }
-  } catch(e) { throw new Error('sheet-page: ' + e.message); }
+async function generateStylesheet(modules, moduleConfigs, cache, pageOpts) {
+  var targetPageName = (pageOpts && pageOpts.pageName && pageOpts.pageName.trim())
+    ? pageOpts.pageName.trim() : 'Token Stylesheet';
+  var useCurrentPage = !!(pageOpts && pageOpts.useCurrentPage);
 
-  // Switch to the stylesheet page before building frames
+  // ── page resolution ───────────────────────────────────────────────────────
+  var page = null;
+  if (useCurrentPage) {
+    page = figma.currentPage;
+  } else {
+    // 1. Find by pluginData (survives rename)
+    try {
+      var _pages = figma.root.children;
+      for (var pi = 0; pi < _pages.length; pi++) {
+        try { if (_pages[pi].getPluginData('isTokenStylesheet') === 'true') { page = _pages[pi]; break; } } catch(e) {}
+      }
+    } catch(e) {}
+    // 2. Fallback: find by name
+    if (!page) {
+      try {
+        var _pages2 = figma.root.children;
+        for (var pi2 = 0; pi2 < _pages2.length; pi2++) {
+          if (_pages2[pi2].name === targetPageName) { page = _pages2[pi2]; break; }
+        }
+      } catch(e) {}
+    }
+    // 3. Create new page
+    if (!page) {
+      try { page = figma.createPage(); page.name = targetPageName; }
+      catch(e) { throw new Error('sheet-page: ' + e.message); }
+    }
+    // Stamp so future lookups survive rename; persist name to clientStorage
+    try { page.setPluginData('isTokenStylesheet', 'true'); } catch(e) {}
+    try { await figma.clientStorage.setAsync('stylesheetPageName', targetPageName); } catch(e) {}
+  }
+
+  // Switch to stylesheet page so nodes are created in the right context
   var _prevPage = figma.currentPage;
-  try { figma.currentPage = page; } catch(e) {}
+  if (!useCurrentPage) { try { figma.currentPage = page; } catch(e) {} }
 
   // Load page before accessing children (required for dynamic-page documentAccess)
   try { await page.loadAsync(); } catch(e) {}
-  // Clear children: snapshot count first so re-reading page.children mid-loop can't throw
+
+  // ── remove only frames that will be regenerated this run ──────────────────
+  // "Colors — Dark" is always removed when Colors is active; re-added only if darkMode on
+  var FRAME_ORDER = ['Colors — Light', 'Colors — Dark', 'Spacing', 'Typography', 'Border Radius', 'Elevation'];
+  var toRemove = {};
+  if (modules['Colors'])        { toRemove['Colors — Light'] = true; toRemove['Colors — Dark'] = true; }
+  if (modules['Spacing'])       toRemove['Spacing'] = true;
+  if (modules['Typography'])    toRemove['Typography'] = true;
+  if (modules['Border Radius']) toRemove['Border Radius'] = true;
+  if (modules['Elevation'])     toRemove['Elevation'] = true;
+
   try {
     var _n = page.children ? page.children.length : 0;
     for (var _ki = _n - 1; _ki >= 0; _ki--) {
-      try { page.children[_ki].remove(); } catch(e) {}
+      try { if (toRemove[page.children[_ki].name]) page.children[_ki].remove(); } catch(e) {}
     }
   } catch(e) {}
 
+  // ── load fonts ────────────────────────────────────────────────────────────
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch(e) {}
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Medium' }); } catch(e) {}
   try { await figma.loadFontAsync({ family: 'Inter', style: 'Semi Bold' }); } catch(e) {}
 
-  var x = 40;
-  var f;
-
+  // ── generate frames (x=0 placeholder — canonical order applied below) ─────
   if (modules['Colors']) {
-    try { var cr = await ssColors(page, x, moduleConfigs['Colors'] || {}, cache); if (cr) x += cr.totalWidth + 40; } catch(e) {}
+    try { await ssColors(page, 0, moduleConfigs['Colors'] || {}, cache); } catch(e) {}
   }
   if (modules['Spacing']) {
-    try { f = await ssSpacing(page, x, moduleConfigs['Spacing'] || {}, cache); if (f) x += f.width + 40; } catch(e) {}
+    try { await ssSpacing(page, 0, moduleConfigs['Spacing'] || {}, cache); } catch(e) {}
   }
   if (modules['Typography']) {
-    try { f = await ssTypography(page, x, moduleConfigs['Typography'] || {}, cache); if (f) x += f.width + 40; } catch(e) {}
+    try { await ssTypography(page, 0, moduleConfigs['Typography'] || {}, cache); } catch(e) {}
   }
   if (modules['Border Radius']) {
-    try { f = await ssRadius(page, x, moduleConfigs['Border Radius'] || {}, cache); if (f) x += f.width + 40; } catch(e) {}
+    try { await ssRadius(page, 0, moduleConfigs['Border Radius'] || {}, cache); } catch(e) {}
   }
   if (modules['Elevation']) {
-    try { f = await ssElevation(page, x, cache); if (f) x += f.width + 40; } catch(e) {}
+    try { await ssElevation(page, 0, cache); } catch(e) {}
   }
 
-  // Restore the page the user was on before stylesheet generation
+  // ── reposition all plugin frames in canonical left-to-right order ─────────
+  var xPos = 40;
+  for (var fi = 0; fi < FRAME_ORDER.length; fi++) {
+    var fname = FRAME_ORDER[fi];
+    try {
+      var _pc = page.children;
+      for (var ci = 0; ci < _pc.length; ci++) {
+        if (_pc[ci].name === fname) {
+          _pc[ci].x = xPos;
+          _pc[ci].y = 40;
+          xPos += _pc[ci].width + 40;
+          break;
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Restore previous page
   try { if (_prevPage && _prevPage !== page) figma.currentPage = _prevPage; } catch(e) {}
 }
 

@@ -1447,6 +1447,21 @@ function PluginApp() {
   });
   const [moduleConfigs, setModuleConfigs] = React.useState({});
 
+  // Seed Stylesheet page name from clientStorage on plugin open
+  React.useEffect(() => {
+    const handler = (e) => {
+      const msg = e.data?.pluginMessage;
+      if (msg?.type === 'stylesheet-init' && msg.pageName) {
+        setModuleConfigs(prev => ({
+          ...prev,
+          Stylesheet: { pageName: msg.pageName, ...(prev.Stylesheet || {}) },
+        }));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   // Sync to global state so FooterApp can read it for generate payload
   React.useEffect(() => {
     window.__pluginState = { ...(window.__pluginState || {}), colors, moduleConfigs };
