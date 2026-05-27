@@ -1268,14 +1268,16 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule, st
         <div style={{ padding: '8px 12px 4px' }}>
           <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Other</div>
         </div>
-        <ModuleItem
-          name="Stylesheet"
-          checked={stylesheetOn}
-          isActive={activeModule === 'Stylesheet'}
-          icon={moduleIcons['Stylesheet']}
-          onToggle={e => { e.stopPropagation(); setStylesheetOn(!stylesheetOn); }}
-          onClick={() => setActiveModule('Stylesheet')}
-        />
+        <div style={{ borderBottom: '1px solid #E0DEDD', padding: '2px 0 6px' }}>
+          <ModuleItem
+            name="Stylesheet"
+            checked={stylesheetOn}
+            isActive={activeModule === 'Stylesheet'}
+            icon={moduleIcons['Stylesheet']}
+            onToggle={e => { e.stopPropagation(); setStylesheetOn(!stylesheetOn); }}
+            onClick={() => setActiveModule('Stylesheet')}
+          />
+        </div>
       </div>
 
       <div style={{ borderTop: '1px solid #E0DEDD' }} />
