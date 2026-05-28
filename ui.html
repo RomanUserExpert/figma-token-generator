@@ -1064,6 +1064,17 @@ function TokenStudio({ activeModule, sharedColors, setSharedColors, sharedModule
   }, [colors, setSharedColors]);
 
   const [moduleConfigs, setModuleConfigsInner] = useState(sharedModuleConfigs || {});
+  // One-time sync: if PluginApp populates moduleConfigs from clientStorage after initial render,
+  // pull it into internal state so UI toggles reflect the restored values.
+  React.useEffect(() => {
+    if (sharedModuleConfigs && sharedModuleConfigs['Colors']) {
+      setModuleConfigsInner(prev => {
+        if (prev['Colors']) return prev; // user already has local Colors state, don't overwrite
+        return { ...prev, ...sharedModuleConfigs };
+      });
+    }
+  }, [sharedModuleConfigs]);
+
   const setModuleConfig = useCallback((name, updater) => {
     setModuleConfigsInner(prev => {
       const next = { ...prev, [name]: typeof updater === 'function' ? updater(prev[name] || {}) : updater };
@@ -1252,7 +1263,7 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule, st
 
         {/* ── MODULES section ── */}
         <div style={{ padding: '8px 12px 4px' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Modules</div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Token modules</div>
         </div>
 
         <div style={{ padding: '2px 0 6px', borderBottom: '1px solid #E0DEDD' }}>
@@ -1266,7 +1277,7 @@ function ModulesSidebar({ modules, setModules, activeModule, setActiveModule, st
 
         {/* ── OTHER section ── */}
         <div style={{ padding: '8px 12px 4px' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Other</div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: '#555555', textTransform: 'uppercase' }}>Other modules</div>
         </div>
         <div style={{ borderBottom: '1px solid #E0DEDD', padding: '2px 0 6px' }}>
           <ModuleItem
@@ -1463,15 +1474,17 @@ function PluginApp() {
   });
   const [moduleConfigs, setModuleConfigs] = React.useState({});
 
-  // Seed Stylesheet page name from clientStorage on plugin open
+  // Seed config from clientStorage on plugin open
   React.useEffect(() => {
     const handler = (e) => {
       const msg = e.data?.pluginMessage;
-      if (msg?.type === 'stylesheet-init' && msg.pageName) {
-        setModuleConfigs(prev => ({
-          ...prev,
-          Stylesheet: { pageName: msg.pageName, ...(prev.Stylesheet || {}) },
-        }));
+      if (msg?.type === 'stylesheet-init') {
+        setModuleConfigs(prev => {
+          const next = { ...prev };
+          if (msg.pageName) next.Stylesheet = { pageName: msg.pageName, ...(prev.Stylesheet || {}) };
+          if (msg.colorsConfig) next.Colors = { ...(msg.colorsConfig), ...(prev.Colors || {}) };
+          return next;
+        });
       }
     };
     window.addEventListener('message', handler);

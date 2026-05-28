@@ -1,10 +1,12 @@
 figma.showUI(__html__, { width: 560, height: 760, title: 'UI Token Starter Pack' });
 
-// Read saved stylesheet page name from clientStorage and seed the UI
+// Read saved config from clientStorage and seed the UI
 (async function() {
   try {
     var savedPageName = await figma.clientStorage.getAsync('stylesheetPageName');
-    figma.ui.postMessage({ type: 'stylesheet-init', pageName: savedPageName || 'Token Stylesheet' });
+    var savedColorsConfig = null;
+    try { savedColorsConfig = await figma.clientStorage.getAsync('lastColorsConfig'); } catch(e2) {}
+    figma.ui.postMessage({ type: 'stylesheet-init', pageName: savedPageName || 'Token Stylesheet', colorsConfig: savedColorsConfig || null });
   } catch(e) {
     figma.ui.postMessage({ type: 'stylesheet-init', pageName: 'Token Stylesheet' });
   }
@@ -26,6 +28,10 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate') {
     try {
       const result = await generateTokens(msg.payload);
+      try {
+        var colorsCfgToSave = (msg.payload.moduleConfigs || {})['Colors'];
+        if (colorsCfgToSave) await figma.clientStorage.setAsync('lastColorsConfig', colorsCfgToSave);
+      } catch(se) {}
       figma.ui.postMessage({ type: 'done', result });
     } catch (err) {
       figma.ui.postMessage({ type: 'error', message: err.message + '\n' + (err.stack || '') });
@@ -84,6 +90,7 @@ figma.ui.onmessage = async (msg) => {
           }
         }
       } catch (pe) {}
+      try { await figma.clientStorage.removeAsync('lastColorsConfig'); } catch(ce) {}
       figma.ui.postMessage({ type: 'clear-done' });
     } catch (err) {
       figma.ui.postMessage({ type: 'error', message: err.message });
