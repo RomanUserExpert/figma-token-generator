@@ -513,9 +513,9 @@ function buildSemanticTokens(colorNames, steps) {
   addS('action/neutral/filled/pressed', neutral, D(0), L(6));
 
   // neutral outlined — dark: L(2/3/4) slightly lifted above canvas so button is a distinct surface
-  addS('action/neutral/outlined/default', neutral, L(3), L(1));
-  addS('action/neutral/outlined/hover',   neutral, L(4), L(2));
-  addS('action/neutral/outlined/pressed', neutral, L(5), L(3));
+  addS('action/neutral/outlined/default', neutral, L(2), L(2));
+  addS('action/neutral/outlined/hover',   neutral, L(3), L(3));
+  addS('action/neutral/outlined/pressed', neutral, L(4), L(4));
 
   tokens.push({ token: 'action/neutral/ghost/default', varName: 'color/transparent' });
   addS('action/neutral/ghost/hover',   neutral, L(1), L(2));
