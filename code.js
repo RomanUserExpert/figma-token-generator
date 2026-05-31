@@ -425,13 +425,13 @@ function buildSemanticTokens(colorNames, steps) {
 
   // ── Text ─────────────────────────────────────────────────────────────────────
   addD('text/primary',     neutral, 1);
-  addD('text/secondary',   neutral, 2);
-  addD('text/tertiary',    neutral, 3);
+  addD('text/secondary',   neutral, 3);
+  addD('text/tertiary',    neutral, 4);
   addL('text/inversed',    neutral, 0);
   // Light: D(3) = dark brand, readable on white. Dark: D(1) = light brand, readable on near-black.
   addS('text/brand',       brand, D(3), D(1));
-  addD('text/disabled',    neutral, 4);
-  addD('text/placeholder', neutral, 4); // same step as disabled — hint-level, distinct semantically
+  addD('text/disabled',    neutral, 5);
+  addD('text/placeholder', neutral, 5); // same step as disabled — hint-level, distinct semantically
 
   if (lower.indexOf('info') !== -1) {
     addD('text/link',         'info', 3);
@@ -455,11 +455,11 @@ function buildSemanticTokens(colorNames, steps) {
 
   // ── Icon ─────────────────────────────────────────────────────────────────────
   addD('icon/primary',   neutral, 1);
-  addD('icon/secondary', neutral, 2);
-  addD('icon/tertiary',  neutral, 3);
+  addD('icon/secondary', neutral, 3);
+  addD('icon/tertiary',  neutral, 4);
   addL('icon/inversed',  neutral, 0);
   addS('icon/brand',     brand, D(3), D(1));
-  addD('icon/disabled',  neutral, 4);
+  addD('icon/disabled',  neutral, 5);
   tokens.push({ token: 'icon/on-color', raw: { r: 0.98, g: 0.98, b: 0.98, a: 1 } });
 
   // status icon
