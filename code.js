@@ -466,10 +466,11 @@ function buildSemanticTokens(colorNames, steps) {
     addM('action/' + ac + '/filled/hover',   ac,  1);
     addM('action/' + ac + '/filled/pressed', ac,  2);
 
-    // outlined: light mode = same as filled; dark mode = lighter steps to contrast on dark canvas
-    addS('action/' + ac + '/outlined/default', ac, M(0),  M(-2));
-    addS('action/' + ac + '/outlined/hover',   ac, M(1),  M(-1));
-    addS('action/' + ac + '/outlined/pressed', ac, M(2),  M(0));
+    // outlined: near-transparent brand tint background (border uses border/{color}/* tokens)
+    // one step lighter than ghost so the border remains the dominant visual signal
+    addS('action/' + ac + '/outlined/default', ac, L(0), L(1));
+    addS('action/' + ac + '/outlined/hover',   ac, L(1), L(2));
+    addS('action/' + ac + '/outlined/pressed', ac, L(2), L(3));
 
     // ghost: light tint in light mode; mid-anchored in dark mode
     addS('action/' + ac + '/ghost/default', ac, L(1), M(-2));
