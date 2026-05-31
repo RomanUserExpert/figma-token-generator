@@ -483,9 +483,9 @@ function buildSemanticTokens(colorNames, steps) {
   addD('action/neutral/filled/hover',     neutral, 1);
   addD('action/neutral/filled/pressed',   neutral, 0);
 
-  addD('action/neutral/outlined/default', neutral, 3);
-  addD('action/neutral/outlined/hover',   neutral, 2);
-  addD('action/neutral/outlined/pressed', neutral, 1);
+  addL('action/neutral/outlined/default', neutral, 0);
+  addL('action/neutral/outlined/hover',   neutral, 1);
+  addL('action/neutral/outlined/pressed', neutral, 2);
 
   addL('action/neutral/ghost/default',    neutral, 2);
   addL('action/neutral/ghost/hover',      neutral, 3);
