@@ -496,10 +496,10 @@ function buildSemanticTokens(colorNames, steps) {
     addM('action/' + ac + '/filled/hover',   ac,  1);
     addM('action/' + ac + '/filled/pressed', ac,  2);
 
-    // outlined bg: visible brand tint so it reads differently from ghost even without border
-    addS('action/' + ac + '/outlined/default', ac, L(1), L(2));
-    addS('action/' + ac + '/outlined/hover',   ac, L(2), L(3));
-    addS('action/' + ac + '/outlined/pressed', ac, L(3), L(4));
+    // outlined bg: 2-step gap above ghost/hover so the two components stay visually distinct
+    addS('action/' + ac + '/outlined/default', ac, L(2), L(3));
+    addS('action/' + ac + '/outlined/hover',   ac, L(3), L(4));
+    addS('action/' + ac + '/outlined/pressed', ac, L(4), L(5));
 
     // ghost: transparent at rest — aliases color/transparent primitive
     tokens.push({ token: 'action/' + ac + '/ghost/default', varName: 'color/transparent' });
@@ -512,9 +512,9 @@ function buildSemanticTokens(colorNames, steps) {
   addD('action/neutral/filled/hover',     neutral, 1);
   addD('action/neutral/filled/pressed',   neutral, 0);
 
-  addL('action/neutral/outlined/default', neutral, 1);
-  addL('action/neutral/outlined/hover',   neutral, 2);
-  addL('action/neutral/outlined/pressed', neutral, 3);
+  addL('action/neutral/outlined/default', neutral, 2);
+  addL('action/neutral/outlined/hover',   neutral, 3);
+  addL('action/neutral/outlined/pressed', neutral, 4);
 
   tokens.push({ token: 'action/neutral/ghost/default', varName: 'color/transparent' });
   addL('action/neutral/ghost/hover',   neutral, 0);
