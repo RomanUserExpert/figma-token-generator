@@ -363,7 +363,7 @@ function buildSemanticTokens(colorNames, steps) {
 
   // ── Surface ───────────────────────────────────────────────────────────────────
   addL('surface/canvas',  neutral, 0);
-  tokens.push({ token: 'surface/overlay', raw: { r: 0, g: 0, b: 0, a: 0.5 } });
+  tokens.push({ token: 'surface/scrim', raw: { r: 0, g: 0, b: 0, a: 0.5 } });
   // floating: elevated surface for modals, popups, tooltips — one step above canvas
   addL('surface/floating', neutral, 1);
 
@@ -375,8 +375,9 @@ function buildSemanticTokens(colorNames, steps) {
   addL('surface/disabled',        neutral, 1);
 
   // brand tint surfaces — light: near-white tint; dark: L(2)/L(3) so tint is perceptible
-  addS('surface/brand/subtle', brand, L(0), L(2));
-  addS('surface/brand/strong', brand, L(2), L(3));
+  addS('surface/brand/subtle',   brand, L(0), L(2));
+  addS('surface/brand/default',  brand, L(1), L(3));
+  addS('surface/brand/strong',   brand, L(2), L(4));
 
   // interactive states
   addL('surface/interactive/default',          neutral, 0);
