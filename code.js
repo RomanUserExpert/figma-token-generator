@@ -474,7 +474,7 @@ function buildSemanticTokens(colorNames, steps) {
   addS('border/neutral/strong',  neutral, L(4), L(5));
   addD('border/inversed',        neutral, 1);
   addL('border/disabled',        neutral, 2);
-  addM('border/focus',           brand,   0);
+  addM('border/focus', lower.indexOf('info') !== -1 ? 'info' : brand, 0);
 
   addL('border/brand/subtle',    brand, 2);
   addL('border/brand/default',   brand, 4);
