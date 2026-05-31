@@ -214,6 +214,11 @@ async function generateColors(colors, cfg, cache) {
     }
   }
 
+  // transparent primitive — single anchor for all ghost/default semantic aliases
+  var transpVar = getOrCreateVariable('color/transparent', lightColl, 'COLOR', overwrite, cache);
+  applyVar(transpVar, lightModeId, { r: 0, g: 0, b: 0, a: 0 }, overwrite);
+  vars++;
+
   var collections = 1;
 
   // ── dark primitives ───────────────────────────────────────────────────────
@@ -300,6 +305,31 @@ async function generateColors(colors, cfg, cache) {
             var svDarkRaw = getOrCreateVariable(t.token, semDarkColl, 'COLOR', overwrite, cache);
             if (!svDarkRaw.__existed || overwrite) svDarkRaw.setValueForMode(semDarkCollModeId, t.raw);
             vars++;
+          }
+        }
+        vars++;
+        continue;
+      }
+
+      // varName: alias to a named primitive variable (e.g. color/transparent)
+      if (t.varName) {
+        var namedPrim = null;
+        for (var nvi = 0; nvi < allColorVars.length; nvi++) {
+          if (allColorVars[nvi].name === t.varName && allColorVars[nvi].variableCollectionId === lightColl.id) {
+            namedPrim = allColorVars[nvi]; break;
+          }
+        }
+        if (namedPrim) {
+          var alias = figma.variables.createVariableAlias(namedPrim);
+          if (!sv.__existed || overwrite) sv.setValueForMode(semLightId, alias);
+          if (darkEnabled) {
+            if (!freePlanFallback && semDarkId) {
+              if (!sv.__existed || overwrite) sv.setValueForMode(semDarkId, figma.variables.createVariableAlias(namedPrim));
+            } else if (freePlanFallback && semDarkColl && semDarkCollModeId) {
+              var svDarkNamed = getOrCreateVariable(t.token, semDarkColl, 'COLOR', overwrite, cache);
+              if (!svDarkNamed.__existed || overwrite) svDarkNamed.setValueForMode(semDarkCollModeId, figma.variables.createVariableAlias(namedPrim));
+              vars++;
+            }
           }
         }
         vars++;
@@ -471,8 +501,8 @@ function buildSemanticTokens(colorNames, steps) {
     addS('action/' + ac + '/outlined/hover',   ac, L(2), L(3));
     addS('action/' + ac + '/outlined/pressed', ac, L(3), L(4));
 
-    // ghost: transparent at rest — fill only appears on interaction
-    tokens.push({ token: 'action/' + ac + '/ghost/default', raw: { r: 0, g: 0, b: 0, a: 0 } });
+    // ghost: transparent at rest — aliases color/transparent primitive
+    tokens.push({ token: 'action/' + ac + '/ghost/default', varName: 'color/transparent' });
     addS('action/' + ac + '/ghost/hover',   ac, L(0), L(1));
     addS('action/' + ac + '/ghost/pressed', ac, L(1), L(2));
   }
@@ -486,7 +516,7 @@ function buildSemanticTokens(colorNames, steps) {
   addL('action/neutral/outlined/hover',   neutral, 2);
   addL('action/neutral/outlined/pressed', neutral, 3);
 
-  tokens.push({ token: 'action/neutral/ghost/default', raw: { r: 0, g: 0, b: 0, a: 0 } });
+  tokens.push({ token: 'action/neutral/ghost/default', varName: 'color/transparent' });
   addL('action/neutral/ghost/hover',   neutral, 0);
   addL('action/neutral/ghost/pressed', neutral, 1);
 
