@@ -497,9 +497,9 @@ function buildSemanticTokens(colorNames, steps) {
     addM('action/' + ac + '/filled/pressed', ac,  2);
 
     // outlined bg: 2-step gap above ghost/hover so the two components stay visually distinct
-    addS('action/' + ac + '/outlined/default', ac, L(2), L(1));
-    addS('action/' + ac + '/outlined/hover',   ac, L(3), L(2));
-    addS('action/' + ac + '/outlined/pressed', ac, L(4), L(3));
+    addS('action/' + ac + '/outlined/default', ac, L(1), L(1));
+    addS('action/' + ac + '/outlined/hover',   ac, L(2), L(2));
+    addS('action/' + ac + '/outlined/pressed', ac, L(3), L(3));
 
     // ghost: transparent at rest — aliases color/transparent primitive
     tokens.push({ token: 'action/' + ac + '/ghost/default', varName: 'color/transparent' });
