@@ -466,16 +466,15 @@ function buildSemanticTokens(colorNames, steps) {
     addM('action/' + ac + '/filled/hover',   ac,  1);
     addM('action/' + ac + '/filled/pressed', ac,  2);
 
-    // outlined: near-transparent brand tint background (border uses border/{color}/* tokens)
-    // one step lighter than ghost so the border remains the dominant visual signal
-    addS('action/' + ac + '/outlined/default', ac, L(0), L(1));
-    addS('action/' + ac + '/outlined/hover',   ac, L(1), L(2));
-    addS('action/' + ac + '/outlined/pressed', ac, L(2), L(3));
+    // outlined bg: visible brand tint so it reads differently from ghost even without border
+    addS('action/' + ac + '/outlined/default', ac, L(1), L(2));
+    addS('action/' + ac + '/outlined/hover',   ac, L(2), L(3));
+    addS('action/' + ac + '/outlined/pressed', ac, L(3), L(4));
 
-    // ghost: light tint in light mode; mid-anchored in dark mode
-    addS('action/' + ac + '/ghost/default', ac, L(1), M(-2));
-    addS('action/' + ac + '/ghost/hover',   ac, L(2), M(-1));
-    addS('action/' + ac + '/ghost/pressed', ac, L(3), M(0));
+    // ghost: transparent at rest — fill only appears on interaction
+    tokens.push({ token: 'action/' + ac + '/ghost/default', raw: { r: 0, g: 0, b: 0, a: 0 } });
+    addS('action/' + ac + '/ghost/hover',   ac, L(0), L(1));
+    addS('action/' + ac + '/ghost/pressed', ac, L(1), L(2));
   }
 
   // neutral: achromatic — D() for filled/outlined (resolves to opposite luminosity end in dark primitives)
@@ -483,13 +482,13 @@ function buildSemanticTokens(colorNames, steps) {
   addD('action/neutral/filled/hover',     neutral, 1);
   addD('action/neutral/filled/pressed',   neutral, 0);
 
-  addL('action/neutral/outlined/default', neutral, 0);
-  addL('action/neutral/outlined/hover',   neutral, 1);
-  addL('action/neutral/outlined/pressed', neutral, 2);
+  addL('action/neutral/outlined/default', neutral, 1);
+  addL('action/neutral/outlined/hover',   neutral, 2);
+  addL('action/neutral/outlined/pressed', neutral, 3);
 
-  addL('action/neutral/ghost/default',    neutral, 2);
-  addL('action/neutral/ghost/hover',      neutral, 3);
-  addL('action/neutral/ghost/pressed',    neutral, 4);
+  tokens.push({ token: 'action/neutral/ghost/default', raw: { r: 0, g: 0, b: 0, a: 0 } });
+  addL('action/neutral/ghost/hover',   neutral, 0);
+  addL('action/neutral/ghost/pressed', neutral, 1);
 
   return tokens;
 }
