@@ -508,9 +508,9 @@ function buildSemanticTokens(colorNames, steps) {
   }
 
   // neutral: achromatic — D() for filled/outlined (resolves to opposite luminosity end in dark primitives)
-  addS('action/neutral/filled/default', neutral, D(2), L(5));
-  addS('action/neutral/filled/hover',   neutral, D(1), L(6));
-  addS('action/neutral/filled/pressed', neutral, D(0), L(7));
+  addS('action/neutral/filled/default', neutral, D(2), M(0));
+  addS('action/neutral/filled/hover',   neutral, D(1), M(1));
+  addS('action/neutral/filled/pressed', neutral, D(0), M(2));
 
   addL('action/neutral/outlined/default', neutral, 2);
   addL('action/neutral/outlined/hover',   neutral, 3);
