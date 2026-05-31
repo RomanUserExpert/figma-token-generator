@@ -394,15 +394,15 @@ function buildSemanticTokens(colorNames, steps) {
   // ── Surface ───────────────────────────────────────────────────────────────────
   addL('surface/canvas',  neutral, 0);
   tokens.push({ token: 'surface/scrim', raw: { r: 0, g: 0, b: 0, a: 0.5 } });
-  // floating: elevated surface for modals, popups, tooltips — one step above canvas
-  addL('surface/floating', neutral, 1);
+  // floating: elevated surface for modals, popups, tooltips — dark gets extra lift vs canvas
+  addS('surface/floating', neutral, L(1), L(3));
 
   // neutral elevation tiers — replaces primary/secondary/tertiary
   addL('surface/neutral/subtle',  neutral, 1);
   addL('surface/neutral/default', neutral, 2);
   addL('surface/neutral/strong',  neutral, 3);
   addD('surface/inversed',        neutral, 0);
-  addL('surface/disabled',        neutral, 1);
+  addL('surface/disabled',        neutral, 0); // recedes toward canvas — visually inactive
 
   // brand tint surfaces — light: near-white tint; dark: L(2)/L(3) so tint is perceptible
   addS('surface/brand/subtle',   brand, L(0), L(2));
@@ -416,11 +416,11 @@ function buildSemanticTokens(colorNames, steps) {
   addS('surface/interactive/selected',         brand, L(0), L(2));
   addS('surface/interactive/selected/hover',   brand, L(1), L(3));
 
-  // status tint surfaces
+  // status tint surfaces — dark: subtle shifts one step up so it reads as a tint not just black
   for (var si = 0; si < statuses.length; si++) {
     if (lower.indexOf(statuses[si]) === -1) continue;
-    addL('surface/' + statuses[si] + '/subtle', statuses[si], 0);
-    addL('surface/' + statuses[si] + '/strong', statuses[si], 2);
+    addS('surface/' + statuses[si] + '/subtle', statuses[si], L(0), L(1));
+    addS('surface/' + statuses[si] + '/strong', statuses[si], L(2), M(0));
   }
 
   // ── Text ─────────────────────────────────────────────────────────────────────
@@ -440,8 +440,8 @@ function buildSemanticTokens(colorNames, steps) {
     addD('text/link-active',  'info', 1); // pressed — one step darker than hover
   }
 
-  // Light: near-white on filled buttons. Dark: near-white on lighter dark-mode buttons.
-  addLD('text/on-color', neutral, 0, 0);
+  // Always white — filled buttons in both modes are dark/saturated enough for white content
+  tokens.push({ token: 'text/on-color', raw: { r: 0.98, g: 0.98, b: 0.98, a: 1 } });
   // Static — never change between modes; for text on photos or fixed-color backgrounds
   tokens.push({ token: 'text/static/white', raw: { r: 0.98, g: 0.98, b: 0.98, a: 1 } });
   tokens.push({ token: 'text/static/black', raw: { r: 0.02, g: 0.02, b: 0.02, a: 1 } });
@@ -460,7 +460,7 @@ function buildSemanticTokens(colorNames, steps) {
   addL('icon/inversed',  neutral, 0);
   addS('icon/brand',     brand, D(3), D(1));
   addD('icon/disabled',  neutral, 4);
-  addLD('icon/on-color', neutral, 0, 0);
+  tokens.push({ token: 'icon/on-color', raw: { r: 0.98, g: 0.98, b: 0.98, a: 1 } });
 
   // status icon
   for (var ii = 0; ii < statuses.length; ii++) {
@@ -469,9 +469,9 @@ function buildSemanticTokens(colorNames, steps) {
   }
 
   // ── Border ───────────────────────────────────────────────────────────────────
-  addL('border/neutral/subtle',  neutral, 2);
-  addL('border/neutral/default', neutral, 3);
-  addL('border/neutral/strong',  neutral, 4);
+  addS('border/neutral/subtle',  neutral, L(2), L(3));
+  addS('border/neutral/default', neutral, L(3), L(4));
+  addS('border/neutral/strong',  neutral, L(4), L(5));
   addD('border/inversed',        neutral, 1);
   addL('border/disabled',        neutral, 2);
   addM('border/focus',           brand,   0);
@@ -508,9 +508,9 @@ function buildSemanticTokens(colorNames, steps) {
   }
 
   // neutral: achromatic — D() for filled/outlined (resolves to opposite luminosity end in dark primitives)
-  addD('action/neutral/filled/default',   neutral, 2);
-  addD('action/neutral/filled/hover',     neutral, 1);
-  addD('action/neutral/filled/pressed',   neutral, 0);
+  addS('action/neutral/filled/default', neutral, D(2), L(5));
+  addS('action/neutral/filled/hover',   neutral, D(1), L(6));
+  addS('action/neutral/filled/pressed', neutral, D(0), L(7));
 
   addL('action/neutral/outlined/default', neutral, 2);
   addL('action/neutral/outlined/hover',   neutral, 3);
@@ -1585,8 +1585,8 @@ var ANT_SAT_DARK  = 0.05;  // saturation increase per darker step
 var ANT_VAL_DARK  = 0.22;  // brightness decrease per darker step — power-curved so 500→600 gets largest drop
 
 // Dark palette V-ramp bounds (direct HSV generation, no background blending)
-var DARK_V_MIN = 0.13;  // darkest shade (100)
-var DARK_V_MAX = 0.88;  // lightest shade (900/950)
+var DARK_V_MIN = 0.09;  // darkest shade (100)
+var DARK_V_MAX = 0.80;  // lightest shade (900/950)
 
 // Light palette — HSV with ±2° hue rotation and Ant Design sat/val steps.
 // isNeutral: force shade 50 to pure white (no hue tint for gray scales).
@@ -1673,7 +1673,7 @@ function buildDarkShades(hex, steps, isNeutral) {
     var v = DARK_V_MIN + (DARK_V_MAX - DARK_V_MIN) * Math.pow(t, 0.9);
 
     // S: slightly boosted at dark end, tapers toward bright end
-    var s = Math.max(0.40, Math.min(1.0, baseS + 0.06 - 0.22 * t));
+    var s = Math.max(0.25, Math.min(1.0, baseS + 0.06 - 0.30 * t));
 
     // H: ±2° rotation per step from baseIdx. Sign matches light palette lighter-step direction:
     // warm hues rotate toward orange (H+), cool hues rotate toward cyan (H−).
