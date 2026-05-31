@@ -512,13 +512,13 @@ function buildSemanticTokens(colorNames, steps) {
   addS('action/neutral/filled/hover',   neutral, D(1), M(1));
   addS('action/neutral/filled/pressed', neutral, D(0), M(2));
 
-  addL('action/neutral/outlined/default', neutral, 2);
-  addL('action/neutral/outlined/hover',   neutral, 3);
-  addL('action/neutral/outlined/pressed', neutral, 4);
+  addS('action/neutral/outlined/default', neutral, L(3), L(3));
+  addS('action/neutral/outlined/hover',   neutral, L(4), L(4));
+  addS('action/neutral/outlined/pressed', neutral, L(5), L(5));
 
   tokens.push({ token: 'action/neutral/ghost/default', varName: 'color/transparent' });
-  addL('action/neutral/ghost/hover',   neutral, 0);
-  addL('action/neutral/ghost/pressed', neutral, 1);
+  addS('action/neutral/ghost/hover',   neutral, L(1), L(2));
+  addS('action/neutral/ghost/pressed', neutral, L(2), L(3));
 
   return tokens;
 }
