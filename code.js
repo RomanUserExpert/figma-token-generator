@@ -470,7 +470,7 @@ function buildSemanticTokens(colorNames, steps) {
 
   // ── Border ───────────────────────────────────────────────────────────────────
   addS('border/neutral/subtle',  neutral, L(2), L(3));
-  addS('border/neutral/default', neutral, L(3), L(4));
+  addS('border/neutral/default', neutral, L(4), L(5));
   addS('border/neutral/strong',  neutral, L(4), L(5));
   addD('border/inversed',        neutral, 1);
   addL('border/disabled',        neutral, 2);
