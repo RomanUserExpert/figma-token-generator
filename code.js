@@ -507,14 +507,15 @@ function buildSemanticTokens(colorNames, steps) {
     addS('action/' + ac + '/ghost/pressed', ac, L(1), L(2));
   }
 
-  // neutral: achromatic — D() for filled/outlined (resolves to opposite luminosity end in dark primitives)
-  addS('action/neutral/filled/default', neutral, D(2), M(0));
-  addS('action/neutral/filled/hover',   neutral, D(1), M(1));
-  addS('action/neutral/filled/pressed', neutral, D(0), M(2));
+  // neutral filled — dark: L(4/5/6) stays in dark range (dark primitive grays, not mid-gray)
+  addS('action/neutral/filled/default', neutral, D(2), L(4));
+  addS('action/neutral/filled/hover',   neutral, D(1), L(5));
+  addS('action/neutral/filled/pressed', neutral, D(0), L(6));
 
-  addS('action/neutral/outlined/default', neutral, L(3), L(3));
-  addS('action/neutral/outlined/hover',   neutral, L(4), L(4));
-  addS('action/neutral/outlined/pressed', neutral, L(5), L(5));
+  // neutral outlined — dark: L(2/3/4) slightly lifted above canvas so button is a distinct surface
+  addS('action/neutral/outlined/default', neutral, L(3), L(2));
+  addS('action/neutral/outlined/hover',   neutral, L(4), L(3));
+  addS('action/neutral/outlined/pressed', neutral, L(5), L(4));
 
   tokens.push({ token: 'action/neutral/ghost/default', varName: 'color/transparent' });
   addS('action/neutral/ghost/hover',   neutral, L(1), L(2));
