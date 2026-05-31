@@ -291,6 +291,21 @@ async function generateColors(colors, cfg, cache) {
       var t = semTokens[ti];
       var sv = getOrCreateVariable(t.token, semColl, 'COLOR', overwrite, cache);
 
+      if (t.raw) {
+        if (!sv.__existed || overwrite) sv.setValueForMode(semLightId, t.raw);
+        if (darkEnabled) {
+          if (!freePlanFallback && semDarkId) {
+            if (!sv.__existed || overwrite) sv.setValueForMode(semDarkId, t.raw);
+          } else if (freePlanFallback && semDarkColl && semDarkCollModeId) {
+            var svDarkRaw = getOrCreateVariable(t.token, semDarkColl, 'COLOR', overwrite, cache);
+            if (!svDarkRaw.__existed || overwrite) svDarkRaw.setValueForMode(semDarkCollModeId, t.raw);
+            vars++;
+          }
+        }
+        vars++;
+        continue;
+      }
+
       var lightStep = t.lightStep !== undefined ? t.lightStep : t.step;
       var darkStep  = t.darkStep  !== undefined ? t.darkStep  : t.step;
 
@@ -320,101 +335,159 @@ async function generateColors(colors, cfg, cache) {
   return { vars: vars, collections: collections };
 }
 
-// Same step for both light and dark — the primitive collections hold different values
+// Tail-anchored semantic mapping — L(n) from bg end, D(n) from contrast end, M(±n) from brand anchor.
+// Both light and dark primitive palettes run bg→contrast so the same index works in both modes.
 function buildSemanticTokens(colorNames, steps) {
   var lower = colorNames.map(function(n) { return n.toLowerCase(); });
   var neutral = findColorKey(colorNames, 'neutral');
   var brand   = findColorKey(colorNames, 'brand');
-  var last = steps.length - 1;
+  var n    = steps.length;
+  var last = n - 1;
+  var mid  = Math.floor(n / 2); // aligns with buildLightShades baseIdx
 
   var tokens = [];
-  // p is 0.0 (lightest) → 1.0 (darkest), maps proportionally to steps array
-  function pct(p) { return steps[Math.min(last, Math.max(0, Math.round(p * last)))]; }
-  function add(token, colorName, p) {
-    tokens.push({ token: token, colorName: colorName, step: pct(p) });
-  }
-  function addLD(token, colorName, lp, dp) {
-    tokens.push({ token: token, colorName: colorName, lightStep: pct(lp), darkStep: pct(dp) });
-  }
 
-  // Background  (0 = lightest end, 1 = darkest end)
-  add('bg/primary',   neutral, 0.00);
-  add('bg/inversed',  neutral, 1.00);
+  function L(i) { return steps[Math.min(last, i)]; }
+  function D(i) { return steps[Math.max(0, last - i)]; }
+  function M(o) { return steps[Math.min(last, Math.max(0, mid + (o || 0)))]; }
 
-  // Surface
-  add('surface/primary',      neutral, 0.11);
-  add('surface/secondary',    neutral, 0.22);
-  add('surface/tertiary',     neutral, 0.33);
-  add('surface/inversed',     neutral, 0.89);
-  add('surface/brand/subtle', brand,   0.00);
-  add('surface/brand/strong', brand,   0.33);
+  function addL(tok, cn, i)       { tokens.push({ token: tok, colorName: cn, step: L(i) }); }
+  function addD(tok, cn, i)       { tokens.push({ token: tok, colorName: cn, step: D(i) }); }
+  function addM(tok, cn, o)       { tokens.push({ token: tok, colorName: cn, step: M(o) }); }
+  // Explicit light + dark steps — use when light and dark modes need different palette positions
+  function addS(tok, cn, ls, ds)  { tokens.push({ token: tok, colorName: cn, lightStep: ls, darkStep: ds }); }
+  // lightStep = L(li), darkStep = D(di)
+  function addLD(tok, cn, li, di) { tokens.push({ token: tok, colorName: cn, lightStep: L(li), darkStep: D(di) }); }
 
-  // Text
-  add('text/primary',   neutral, 0.89);
-  add('text/secondary', neutral, 0.56);
-  add('text/tertiary',  neutral, 0.28);
-  add('text/inversed',  neutral, 0.00);
-  add('text/brand',     brand,   0.56);
-
-  // Icon
-  add('icon/primary',   neutral, 0.89);
-  add('icon/secondary', neutral, 0.56);
-  add('icon/tertiary',  neutral, 0.28);
-  add('icon/inversed',  neutral, 0.00);
-  add('icon/brand',     brand,   0.56);
-
-  // Border
-  add('border/primary',      neutral, 0.39);
-  add('border/secondary',    neutral, 0.28);
-  add('border/tertiary',     neutral, 0.17);
-  add('border/inversed',     neutral, 0.89);
-  add('border/brand/subtle', brand,   0.22);
-  add('border/brand/strong', brand,   0.50);
-  add('border/focus',        brand,   0.50);
-
-  // Actions — primary
-  add('action/primary/default',  brand,   0.44);
-  add('action/primary/hover',    brand,   0.56);
-  add('action/primary/pressed',  brand,   0.67);
-  add('action/primary/focused',  brand,   0.44);
-  add('action/primary/disabled', neutral, 0.28);
-
-  // Actions — secondary (outlined / tinted)
-  add('action/secondary/default',  brand,   0.11);
-  add('action/secondary/hover',    brand,   0.22);
-  add('action/secondary/pressed',  brand,   0.33);
-  add('action/secondary/focused',  brand,   0.11);
-  add('action/secondary/disabled', neutral, 0.22);
-
-  // Actions — tertiary (ghost / subtle)
-  add('action/tertiary/default',  neutral, 0.11);
-  add('action/tertiary/hover',    neutral, 0.22);
-  add('action/tertiary/pressed',  neutral, 0.33);
-  add('action/tertiary/focused',  neutral, 0.11);
-  add('action/tertiary/disabled', neutral, 0.11);
-
-  // On-color text/icon for colored surfaces
-  addLD('text/on-color', neutral, 0.00, 1.00);
-  addLD('icon/on-color', neutral, 0.00, 1.00);
-
-  // Status surface / text / icon / border + action states
   var statuses = ['info', 'success', 'warning', 'error'];
-  for (var i = 0; i < statuses.length; i++) {
-    var status = statuses[i];
-    if (lower.indexOf(status) === -1) continue;
 
-    add('surface/' + status + '/subtle', status, 0.00);
-    add('surface/' + status + '/strong', status, 0.33);
-    add('text/'    + status, status, 0.56);
-    add('icon/'    + status, status, 0.56);
-    add('border/'  + status + '/subtle', status, 0.22);
-    add('border/'  + status + '/strong', status, 0.50);
+  // ── Surface ───────────────────────────────────────────────────────────────────
+  addL('surface/canvas',  neutral, 0);
+  tokens.push({ token: 'surface/overlay', raw: { r: 0, g: 0, b: 0, a: 0.5 } });
+  // floating: elevated surface for modals, popups, tooltips — one step above canvas
+  addL('surface/floating', neutral, 1);
 
-    add('action/' + status + '/default',  status, 0.44);
-    add('action/' + status + '/hover',    status, 0.56);
-    add('action/' + status + '/pressed',  status, 0.67);
-    add('action/' + status + '/focused',  status, 0.44);
+  // neutral elevation tiers — replaces primary/secondary/tertiary
+  addL('surface/neutral/subtle',  neutral, 1);
+  addL('surface/neutral/default', neutral, 2);
+  addL('surface/neutral/strong',  neutral, 3);
+  addD('surface/inversed',        neutral, 0);
+  addL('surface/disabled',        neutral, 1);
+
+  // brand tint surfaces — light: near-white tint; dark: L(2)/L(3) so tint is perceptible
+  addS('surface/brand/subtle', brand, L(0), L(2));
+  addS('surface/brand/strong', brand, L(2), L(3));
+
+  // interactive states
+  addL('surface/interactive/default',          neutral, 0);
+  addL('surface/interactive/hover',            neutral, 1);
+  addL('surface/interactive/pressed',          neutral, 2);
+  addS('surface/interactive/selected',         brand, L(0), L(2));
+  addS('surface/interactive/selected/hover',   brand, L(1), L(3));
+
+  // status tint surfaces
+  for (var si = 0; si < statuses.length; si++) {
+    if (lower.indexOf(statuses[si]) === -1) continue;
+    addL('surface/' + statuses[si] + '/subtle', statuses[si], 0);
+    addL('surface/' + statuses[si] + '/strong', statuses[si], 2);
   }
+
+  // ── Text ─────────────────────────────────────────────────────────────────────
+  addD('text/primary',     neutral, 1);
+  addD('text/secondary',   neutral, 2);
+  addD('text/tertiary',    neutral, 3);
+  addL('text/inversed',    neutral, 0);
+  // Light: D(3) = dark brand, readable on white. Dark: D(1) = light brand, readable on near-black.
+  addS('text/brand',       brand, D(3), D(1));
+  addD('text/disabled',    neutral, 4);
+  addD('text/placeholder', neutral, 4); // same step as disabled — hint-level, distinct semantically
+
+  if (lower.indexOf('info') !== -1) {
+    addD('text/link',         'info', 3);
+    addD('text/link-hover',   'info', 2);
+    addD('text/link-visited', 'info', 4); // muted — one step lighter than default link
+    addD('text/link-active',  'info', 1); // pressed — one step darker than hover
+  }
+
+  // Light: near-white on filled buttons. Dark: near-white on lighter dark-mode buttons.
+  addLD('text/on-color', neutral, 0, 0);
+  // Static — never change between modes; for text on photos or fixed-color backgrounds
+  tokens.push({ token: 'text/static/white', raw: { r: 0.98, g: 0.98, b: 0.98, a: 1 } });
+  tokens.push({ token: 'text/static/black', raw: { r: 0.02, g: 0.02, b: 0.02, a: 1 } });
+
+  // status text
+  for (var ti = 0; ti < statuses.length; ti++) {
+    if (lower.indexOf(statuses[ti]) === -1) continue;
+    // Light: D(3) = dark status tone on white. Dark: D(1) = light status tone on near-black.
+    addS('text/' + statuses[ti], statuses[ti], D(3), D(1));
+  }
+
+  // ── Icon ─────────────────────────────────────────────────────────────────────
+  addD('icon/primary',   neutral, 1);
+  addD('icon/secondary', neutral, 2);
+  addD('icon/tertiary',  neutral, 3);
+  addL('icon/inversed',  neutral, 0);
+  addS('icon/brand',     brand, D(3), D(1));
+  addD('icon/disabled',  neutral, 4);
+  addLD('icon/on-color', neutral, 0, 0);
+
+  // status icon
+  for (var ii = 0; ii < statuses.length; ii++) {
+    if (lower.indexOf(statuses[ii]) === -1) continue;
+    addS('icon/' + statuses[ii], statuses[ii], D(3), D(1));
+  }
+
+  // ── Border ───────────────────────────────────────────────────────────────────
+  addL('border/neutral/subtle',  neutral, 2);
+  addL('border/neutral/default', neutral, 3);
+  addL('border/neutral/strong',  neutral, 4);
+  addD('border/inversed',        neutral, 1);
+  addL('border/disabled',        neutral, 2);
+  addM('border/focus',           brand,   0);
+
+  addL('border/brand/subtle',    brand, 2);
+  addL('border/brand/default',   brand, 4);
+  addM('border/brand/strong',    brand, 0);
+
+  for (var bi = 0; bi < statuses.length; bi++) {
+    if (lower.indexOf(statuses[bi]) === -1) continue;
+    addL('border/' + statuses[bi] + '/subtle',  statuses[bi], 2);
+    addL('border/' + statuses[bi] + '/default', statuses[bi], 4);
+  }
+
+  // ── Actions — filled / outlined / ghost ──────────────────────────────────────
+  // brand + error: chromatic — mid-anchored M() for filled, split light/dark for outlined/ghost
+  var chromaActions = [brand, lower.indexOf('error') !== -1 ? 'error' : null].filter(Boolean);
+  for (var ai = 0; ai < chromaActions.length; ai++) {
+    var ac = chromaActions[ai];
+
+    addM('action/' + ac + '/filled/default', ac,  0);
+    addM('action/' + ac + '/filled/hover',   ac,  1);
+    addM('action/' + ac + '/filled/pressed', ac,  2);
+
+    // outlined: light mode = same as filled; dark mode = lighter steps to contrast on dark canvas
+    addS('action/' + ac + '/outlined/default', ac, M(0),  M(-2));
+    addS('action/' + ac + '/outlined/hover',   ac, M(1),  M(-1));
+    addS('action/' + ac + '/outlined/pressed', ac, M(2),  M(0));
+
+    // ghost: light tint in light mode; mid-anchored in dark mode
+    addS('action/' + ac + '/ghost/default', ac, L(1), M(-2));
+    addS('action/' + ac + '/ghost/hover',   ac, L(2), M(-1));
+    addS('action/' + ac + '/ghost/pressed', ac, L(3), M(0));
+  }
+
+  // neutral: achromatic — D() for filled/outlined (resolves to opposite luminosity end in dark primitives)
+  addD('action/neutral/filled/default',   neutral, 2);
+  addD('action/neutral/filled/hover',     neutral, 1);
+  addD('action/neutral/filled/pressed',   neutral, 0);
+
+  addD('action/neutral/outlined/default', neutral, 3);
+  addD('action/neutral/outlined/hover',   neutral, 2);
+  addD('action/neutral/outlined/pressed', neutral, 1);
+
+  addL('action/neutral/ghost/default',    neutral, 2);
+  addL('action/neutral/ghost/hover',      neutral, 3);
+  addL('action/neutral/ghost/pressed',    neutral, 4);
 
   return tokens;
 }
@@ -959,7 +1032,7 @@ async function ssColors(page, xOff, cfg, cache) {
   var SW_P = 88, SH_P = 56, SW_P_GAP = 6;
   // Semantic column layout
   var SEM_SW = 14, SEM_COL_W = 150, SEM_COL_GAP = 16, SEM_ROW_H = 20;
-  var SEM_COLS_ORDER = ['bg', 'surface', 'text', 'icon', 'border', 'action'];
+  var SEM_COLS_ORDER = ['surface', 'text', 'icon', 'border', 'action'];
 
   var darkEnabled = cfg.darkModeOn || false;
   var semanticOn  = cfg.semanticOn  || false;
@@ -1571,9 +1644,11 @@ function buildDarkShades(hex, steps, isNeutral) {
     // S: slightly boosted at dark end, tapers toward bright end
     var s = Math.max(0.40, Math.min(1.0, baseS + 0.06 - 0.22 * t));
 
-    // H: same ±2° rotation per step from baseIdx, same direction as light palette
+    // H: ±2° rotation per step from baseIdx. Sign matches light palette lighter-step direction:
+    // warm hues rotate toward orange (H+), cool hues rotate toward cyan (H−).
+    // Previous sign was inverted, pushing warm colors (red, yellow) into the pink/magenta sector.
     var d = i - baseIdx;
-    var h = (baseH - hueDir * ANT_HUE_STEP * d + 360) % 360;
+    var h = (baseH + hueDir * ANT_HUE_STEP * d + 360) % 360;
 
     var out = hsvToRgb(h, s, v);
     return { step: step, rgb: { r: out.r / 255, g: out.g / 255, b: out.b / 255 } };
