@@ -502,8 +502,8 @@ function buildSemanticTokens(colorNames, steps) {
 
     // ghost: transparent at rest — aliases color/transparent primitive
     tokens.push({ token: 'action/' + ac + '/ghost/default', varName: 'color/transparent' });
-    addS('action/' + ac + '/ghost/hover',   ac, M(-5), M(-5));
-    addS('action/' + ac + '/ghost/pressed', ac, M(-4), M(-4));
+    addS('action/' + ac + '/ghost/hover',   ac, L(0), M(-4));
+    addS('action/' + ac + '/ghost/pressed', ac, L(2), M(-3));
   }
 
   // neutral filled — dark: L(4/5/6) stays in dark range (dark primitive grays, not mid-gray)
