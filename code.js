@@ -392,35 +392,34 @@ function buildSemanticTokens(colorNames, steps) {
   var statuses = ['info', 'success', 'warning', 'error'];
 
   // ── Surface ───────────────────────────────────────────────────────────────────
-  addL('surface/canvas',  neutral, 0);
+  addS('surface/canvas',  neutral, M(-5), M(-5));
   tokens.push({ token: 'surface/scrim', raw: { r: 0, g: 0, b: 0, a: 0.5 } });
-  // floating: elevated surface for modals, popups, tooltips — dark gets extra lift vs canvas
-  addS('surface/floating', neutral, L(1), L(3));
+  addS('surface/floating',        neutral, M(-4), M(-3));
 
-  // neutral elevation tiers — replaces primary/secondary/tertiary
-  addL('surface/neutral/subtle',  neutral, 1);
-  addL('surface/neutral/default', neutral, 2);
-  addL('surface/neutral/strong',  neutral, 3);
+  // neutral elevation tiers
+  addS('surface/neutral/subtle',  neutral, M(-4), M(-4));
+  addS('surface/neutral/default', neutral, M(-3), M(-3));
+  addS('surface/neutral/strong',  neutral, M(-2), M(-2));
   addD('surface/inversed',        neutral, 0);
-  addL('surface/disabled',        neutral, 0); // recedes toward canvas — visually inactive
+  addS('surface/disabled',        neutral, M(-4), M(-4));
 
-  // brand tint surfaces — light: near-white tint; dark: L(2)/L(3) so tint is perceptible
-  addS('surface/brand/subtle',   brand, L(0), L(2));
-  addS('surface/brand/default',  brand, L(1), L(3));
-  addS('surface/brand/strong',   brand, L(2), L(4));
+  // brand tint surfaces
+  addS('surface/brand/subtle',   brand, M(-5), M(-4));
+  addS('surface/brand/default',  brand, M(-4), M(-3));
+  addS('surface/brand/strong',   brand, M(-3), M(-2));
 
   // interactive states
-  addL('surface/interactive/default',          neutral, 0);
-  addL('surface/interactive/hover',            neutral, 1);
-  addL('surface/interactive/pressed',          neutral, 2);
-  addS('surface/interactive/selected',         brand, L(0), L(2));
-  addS('surface/interactive/selected/hover',   brand, L(1), L(3));
+  addS('surface/interactive/default',          neutral, M(-5), M(-5));
+  addS('surface/interactive/hover',            neutral, M(-4), M(-4));
+  addS('surface/interactive/pressed',          neutral, M(-3), M(-3));
+  addS('surface/interactive/selected',         brand,   M(-5), M(-4));
+  addS('surface/interactive/selected/hover',   brand,   M(-4), M(-3));
 
-  // status tint surfaces — dark: subtle shifts one step up so it reads as a tint not just black
+  // status tint surfaces
   for (var si = 0; si < statuses.length; si++) {
     if (lower.indexOf(statuses[si]) === -1) continue;
-    addS('surface/' + statuses[si] + '/subtle', statuses[si], L(0), L(1));
-    addS('surface/' + statuses[si] + '/strong', statuses[si], L(2), M(0));
+    addS('surface/' + statuses[si] + '/subtle', statuses[si], M(-5), M(-4));
+    addS('surface/' + statuses[si] + '/strong', statuses[si], M(-3), M(0));
   }
 
   // ── Text ─────────────────────────────────────────────────────────────────────
@@ -469,21 +468,21 @@ function buildSemanticTokens(colorNames, steps) {
   }
 
   // ── Border ───────────────────────────────────────────────────────────────────
-  addS('border/neutral/subtle',  neutral, L(2), L(3));
-  addS('border/neutral/default', neutral, L(4), L(5));
-  addS('border/neutral/strong',  neutral, L(4), L(5));
+  addS('border/neutral/subtle',  neutral, M(-2), M(-1));
+  addS('border/neutral/default', neutral, M(-1), M(0));
+  addS('border/neutral/strong',  neutral, M(0),  M(1));
   addD('border/inversed',        neutral, 1);
-  addL('border/disabled',        neutral, 2);
+  addS('border/disabled',        neutral, M(-3), M(-3));
   addM('border/focus', lower.indexOf('info') !== -1 ? 'info' : brand, 0);
 
-  addL('border/brand/subtle',    brand, 2);
-  addL('border/brand/default',   brand, 4);
+  addS('border/brand/subtle',    brand, M(-3), M(-3));
+  addS('border/brand/default',   brand, M(-1), M(-1));
   addM('border/brand/strong',    brand, 0);
 
   for (var bi = 0; bi < statuses.length; bi++) {
     if (lower.indexOf(statuses[bi]) === -1) continue;
-    addL('border/' + statuses[bi] + '/subtle',  statuses[bi], 2);
-    addL('border/' + statuses[bi] + '/default', statuses[bi], 4);
+    addS('border/' + statuses[bi] + '/subtle',  statuses[bi], M(-3), M(-3));
+    addS('border/' + statuses[bi] + '/default', statuses[bi], M(-1), M(-1));
   }
 
   // ── Actions — filled / outlined / ghost ──────────────────────────────────────
@@ -497,29 +496,29 @@ function buildSemanticTokens(colorNames, steps) {
     addM('action/' + ac + '/filled/pressed', ac,  2);
 
     // outlined bg: 2-step gap above ghost/hover so the two components stay visually distinct
-    addS('action/' + ac + '/outlined/default', ac, L(1), L(1));
-    addS('action/' + ac + '/outlined/hover',   ac, L(2), L(2));
-    addS('action/' + ac + '/outlined/pressed', ac, L(3), L(3));
+    addS('action/' + ac + '/outlined/default', ac, M(-5), M(-5));
+    addS('action/' + ac + '/outlined/hover',   ac, M(-4), M(-4));
+    addS('action/' + ac + '/outlined/pressed', ac, M(-3), M(-3));
 
     // ghost: transparent at rest — aliases color/transparent primitive
     tokens.push({ token: 'action/' + ac + '/ghost/default', varName: 'color/transparent' });
-    addS('action/' + ac + '/ghost/hover',   ac, L(0), L(1));
-    addS('action/' + ac + '/ghost/pressed', ac, L(1), L(2));
+    addS('action/' + ac + '/ghost/hover',   ac, M(-5), M(-5));
+    addS('action/' + ac + '/ghost/pressed', ac, M(-4), M(-4));
   }
 
   // neutral filled — dark: L(4/5/6) stays in dark range (dark primitive grays, not mid-gray)
-  addS('action/neutral/filled/default', neutral, D(2), L(4));
-  addS('action/neutral/filled/hover',   neutral, D(1), L(5));
-  addS('action/neutral/filled/pressed', neutral, D(0), L(6));
+  addS('action/neutral/filled/default', neutral, M(1),  M(-2));
+  addS('action/neutral/filled/hover',   neutral, M(2),  M(-1));
+  addS('action/neutral/filled/pressed', neutral, M(3),  M(0));
 
   // neutral outlined — dark: L(2/3/4) slightly lifted above canvas so button is a distinct surface
-  addS('action/neutral/outlined/default', neutral, L(2), L(2));
-  addS('action/neutral/outlined/hover',   neutral, L(3), L(3));
-  addS('action/neutral/outlined/pressed', neutral, L(4), L(4));
+  addS('action/neutral/outlined/default', neutral, M(-4), M(-4));
+  addS('action/neutral/outlined/hover',   neutral, M(-3), M(-3));
+  addS('action/neutral/outlined/pressed', neutral, M(-2), M(-2));
 
   tokens.push({ token: 'action/neutral/ghost/default', varName: 'color/transparent' });
-  addS('action/neutral/ghost/hover',   neutral, L(1), L(2));
-  addS('action/neutral/ghost/pressed', neutral, L(2), L(3));
+  addS('action/neutral/ghost/hover',   neutral, M(-4), M(-4));
+  addS('action/neutral/ghost/pressed', neutral, M(-3), M(-3));
 
   return tokens;
 }
