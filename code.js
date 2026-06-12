@@ -1592,7 +1592,7 @@ var ANT_SAT_DARK  = 0.05;  // saturation increase per darker step
 var ANT_VAL_DARK  = 0.22;  // brightness decrease per darker step — power-curved so 500→600 gets largest drop
 
 // Dark palette V-ramp bounds (direct HSV generation, no background blending)
-var DARK_V_MIN = 0.09;  // darkest shade (100)
+var DARK_V_MIN = 0.14;  // darkest shade (100)
 var DARK_V_MAX = 0.80;  // lightest shade (900/950)
 
 // Light palette — HSV with ±2° hue rotation and Ant Design sat/val steps.
