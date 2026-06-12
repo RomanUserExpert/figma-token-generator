@@ -241,6 +241,11 @@ async function generateColors(colors, cfg, cache) {
       }
     }
 
+    // transparent primitive in dark collection — keeps ghost/default aliases in-collection
+    var darkTranspVar = getOrCreateVariable('color/transparent', darkColl, 'COLOR', overwrite, cache);
+    applyVar(darkTranspVar, darkModeId, { r: 0, g: 0, b: 0, a: 0 }, overwrite);
+    vars++;
+
     collections++;
   }
 
@@ -313,23 +318,25 @@ async function generateColors(colors, cfg, cache) {
 
       // varName: alias to a named primitive variable (e.g. color/transparent)
       if (t.varName) {
-        var namedPrim = null;
+        var namedPrimLight = null;
+        var namedPrimDark  = null;
         for (var nvi = 0; nvi < allColorVars.length; nvi++) {
-          if (allColorVars[nvi].name === t.varName && allColorVars[nvi].variableCollectionId === lightColl.id) {
-            namedPrim = allColorVars[nvi]; break;
-          }
+          var nv = allColorVars[nvi];
+          if (nv.name !== t.varName) continue;
+          if (nv.variableCollectionId === lightColl.id) namedPrimLight = nv;
+          if (darkColl && nv.variableCollectionId === darkColl.id) namedPrimDark = nv;
         }
-        if (namedPrim) {
-          var alias = figma.variables.createVariableAlias(namedPrim);
-          if (!sv.__existed || overwrite) sv.setValueForMode(semLightId, alias);
-          if (darkEnabled) {
-            if (!freePlanFallback && semDarkId) {
-              if (!sv.__existed || overwrite) sv.setValueForMode(semDarkId, figma.variables.createVariableAlias(namedPrim));
-            } else if (freePlanFallback && semDarkColl && semDarkCollModeId) {
-              var svDarkNamed = getOrCreateVariable(t.token, semDarkColl, 'COLOR', overwrite, cache);
-              if (!svDarkNamed.__existed || overwrite) svDarkNamed.setValueForMode(semDarkCollModeId, figma.variables.createVariableAlias(namedPrim));
-              vars++;
-            }
+        if (namedPrimLight) {
+          if (!sv.__existed || overwrite) sv.setValueForMode(semLightId, figma.variables.createVariableAlias(namedPrimLight));
+        }
+        if (darkEnabled) {
+          var darkNamedSrc = namedPrimDark || namedPrimLight; // fallback to light if dark not found
+          if (!freePlanFallback && semDarkId) {
+            if (darkNamedSrc && (!sv.__existed || overwrite)) sv.setValueForMode(semDarkId, figma.variables.createVariableAlias(darkNamedSrc));
+          } else if (freePlanFallback && semDarkColl && semDarkCollModeId) {
+            var svDarkNamed = getOrCreateVariable(t.token, semDarkColl, 'COLOR', overwrite, cache);
+            if (darkNamedSrc && (!svDarkNamed.__existed || overwrite)) svDarkNamed.setValueForMode(semDarkCollModeId, figma.variables.createVariableAlias(darkNamedSrc));
+            vars++;
           }
         }
         vars++;
@@ -1627,11 +1634,14 @@ function buildLightShades(hex, steps, isNeutral) {
     if (i === baseIdx) {
       outH = baseH; outS = baseS; outV = baseV;
     } else if (i < baseIdx) {
+      // Power-curve ramp: prevents light shades from crowding at V=1.0 for high-baseV colors.
+      // Linear steps would collapse 3-4 shades to identical near-white when baseV ≥ 0.75.
+      var t = i / baseIdx; // 0 = lightest shade, 1 = anchor
       var d = baseIdx - i;
       outH = (baseH + hueDir * ANT_HUE_STEP * d + 360) % 360;
-      outS = Math.max(0.06, baseS - ANT_SAT_LIGHT * d);
+      outV = 1.0 + (baseV - 1.0) * Math.pow(t, 1.8);
+      outS = Math.max(0.06, baseS * Math.pow(t, 0.85));
       if (i === 0) outS = Math.min(outS, 0.06);
-      outV = Math.min(1.0, baseV + ANT_VAL_LIGHT * d);
     } else {
       var d2 = i - baseIdx;
       outH = (baseH - hueDir * ANT_HUE_STEP * d2 + 360) % 360;
@@ -1654,8 +1664,11 @@ function buildDarkShades(hex, steps, isNeutral) {
   if (isNeutral) {
     return steps.map(function(step, i) {
       var t = i / (n - 1);
-      var v = Math.round((0.04 + t * 0.84) * 255);
-      return { step: step, rgb: { r: v / 255, g: v / 255, b: v / 255 } };
+      // Slight power curve (< 1) spreads the dark end apart for perceptual evenness —
+      // linear V steps look bunched at dark shades due to sRGB gamma.
+      var v = 0.04 + 0.84 * Math.pow(t, 0.78);
+      var vi = Math.round(v * 255);
+      return { step: step, rgb: { r: vi / 255, g: vi / 255, b: vi / 255 } };
     });
   }
 
