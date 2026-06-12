@@ -1603,7 +1603,13 @@ function buildLightShades(hex, steps, isNeutral) {
   var baseH = hsv.h, baseS = hsv.s, baseV = hsv.v;
   var n = steps.length;
 
-  var baseIdx = Math.floor(n / 2);
+  // Adaptive anchor: use HSL L so dark inputs anchor near the dark end of the scale
+  // (giving more lighter shades above) and bright inputs anchor near the light end.
+  // Math.floor(n/2) was wrong for dark colors — they crowded all dark shades in V=0.12–0.45.
+  var cmax0 = Math.max(rgb[0], rgb[1], rgb[2]) / 255;
+  var cmin0 = Math.min(rgb[0], rgb[1], rgb[2]) / 255;
+  var hslL  = (cmax0 + cmin0) / 2;
+  var baseIdx = Math.max(2, Math.min(n - 3, Math.round((n - 1) * (1 - hslL))));
 
   // Neutral: linear V ramp anchored at shade 500, saturation scaled by a power curve
   // so lighter shades are nearly white/gray while deeper shades carry the user's hue.
@@ -1689,8 +1695,8 @@ function buildDarkShades(hex, steps, isNeutral) {
     var v = DARK_V_MIN + (DARK_V_MAX - DARK_V_MIN) * Math.pow(t, 0.9);
 
     // S: slightly boosted at dark end, tapers toward bright end.
-    // effectiveS floors at 0.42 so pale inputs still yield a colorful dark palette.
-    var effectiveS = Math.max(baseS, 0.42);
+    // effectiveS floors at 0.60 so pale/pastel inputs still yield a colorful dark palette.
+    var effectiveS = Math.max(baseS, 0.60);
     var s = Math.max(0.25, Math.min(1.0, effectiveS + 0.06 - 0.30 * t));
 
     // H: ±2° rotation per step from baseIdx. Sign matches light palette lighter-step direction:
