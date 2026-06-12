@@ -1644,9 +1644,12 @@ function buildLightShades(hex, steps, isNeutral) {
       if (i === 0) outS = Math.min(outS, 0.06);
     } else {
       var d2 = i - baseIdx;
+      var darkSteps = n - 1 - baseIdx;
       outH = (baseH - hueDir * ANT_HUE_STEP * d2 + 360) % 360;
       outS = Math.min(1.0, baseS + ANT_SAT_DARK * d2);
-      outV = Math.max(0.13, baseV - ANT_VAL_DARK * Math.pow(d2, 0.75));
+      // Normalized spread: always runs baseV → 0.12 over the full dark range,
+      // so dark-input colors don't collapse multiple shades to near-black.
+      outV = Math.max(0.12, baseV - (baseV - 0.12) * Math.pow(d2 / darkSteps, 0.75));
     }
 
     var out = hsvToRgb(outH, Math.max(0, Math.min(1, outS)), Math.max(0, Math.min(1, outV)));
@@ -1685,8 +1688,10 @@ function buildDarkShades(hex, steps, isNeutral) {
     // V: power-curve ramp gives ~0.08–0.10 V step between every adjacent pair
     var v = DARK_V_MIN + (DARK_V_MAX - DARK_V_MIN) * Math.pow(t, 0.9);
 
-    // S: slightly boosted at dark end, tapers toward bright end
-    var s = Math.max(0.25, Math.min(1.0, baseS + 0.06 - 0.30 * t));
+    // S: slightly boosted at dark end, tapers toward bright end.
+    // effectiveS floors at 0.42 so pale inputs still yield a colorful dark palette.
+    var effectiveS = Math.max(baseS, 0.42);
+    var s = Math.max(0.25, Math.min(1.0, effectiveS + 0.06 - 0.30 * t));
 
     // H: ±2° rotation per step from baseIdx. Sign matches light palette lighter-step direction:
     // warm hues rotate toward orange (H+), cool hues rotate toward cyan (H−).
