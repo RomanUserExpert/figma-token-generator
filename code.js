@@ -1697,11 +1697,10 @@ function buildDarkShades(hex, steps, isNeutral) {
     // V: power-curve ramp gives ~0.08–0.10 V step between every adjacent pair
     var v = DARK_V_MIN + (DARK_V_MAX - DARK_V_MIN) * Math.pow(t, 0.9);
 
-    // S: boost pale inputs so dark shades are vivid, but taper the floor toward bright end
-    // so the last (lightest) shade doesn't look jarring against the rest of the row.
-    var sFloor = 0.60 - 0.32 * t; // 0.60 at darkest shade → 0.28 at brightest
-    var effectiveS = Math.max(baseS, sFloor);
-    var s = Math.max(0.25, Math.min(1.0, effectiveS + 0.06 - 0.30 * t));
+    // S: multiplicative ramp (0.90→0.60 across the scale) keeps saturation consistent
+    // so mid-range shades don't go gray. Floor of 0.68 ensures pale inputs stay chromatic.
+    var effectiveS = Math.max(baseS, 0.68);
+    var s = Math.max(0.25, Math.min(1.0, effectiveS * (0.90 - 0.30 * t)));
 
     // H: ±2° rotation per step from baseIdx. Sign matches light palette lighter-step direction:
     // warm hues rotate toward orange (H+), cool hues rotate toward cyan (H−).
