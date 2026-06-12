@@ -1593,7 +1593,7 @@ var ANT_VAL_DARK  = 0.22;  // brightness decrease per darker step — power-curv
 
 // Dark palette V-ramp bounds (direct HSV generation, no background blending)
 var DARK_V_MIN = 0.14;  // darkest shade (100)
-var DARK_V_MAX = 0.80;  // lightest shade (900/950)
+var DARK_V_MAX = 0.72;  // lightest shade (900/950)
 
 // Light palette — HSV with ±2° hue rotation and Ant Design sat/val steps.
 // isNeutral: force shade 50 to pure white (no hue tint for gray scales).
@@ -1603,13 +1603,15 @@ function buildLightShades(hex, steps, isNeutral) {
   var baseH = hsv.h, baseS = hsv.s, baseV = hsv.v;
   var n = steps.length;
 
-  // Adaptive anchor: use HSL L so dark inputs anchor near the dark end of the scale
-  // (giving more lighter shades above) and bright inputs anchor near the light end.
-  // Math.floor(n/2) was wrong for dark colors — they crowded all dark shades in V=0.12–0.45.
   var cmax0 = Math.max(rgb[0], rgb[1], rgb[2]) / 255;
   var cmin0 = Math.min(rgb[0], rgb[1], rgb[2]) / 255;
   var hslL  = (cmax0 + cmin0) / 2;
-  var baseIdx = Math.max(2, Math.min(n - 3, Math.round((n - 1) * (1 - hslL))));
+  // Dark inputs (hslL < 0.45): shift anchor toward dark end so lighter shades fill the
+  // visible range instead of crowding in V=0.12–0.45. Pale inputs keep the fixed midpoint —
+  // adaptive shift for pale colors caused 7 dark shades spanning down to near-black.
+  var baseIdx = hslL < 0.45
+    ? Math.max(2, Math.min(n - 3, Math.round((n - 1) * (1 - hslL))))
+    : Math.floor(n / 2);
 
   // Neutral: linear V ramp anchored at shade 500, saturation scaled by a power curve
   // so lighter shades are nearly white/gray while deeper shades carry the user's hue.
@@ -1653,9 +1655,10 @@ function buildLightShades(hex, steps, isNeutral) {
       var darkSteps = n - 1 - baseIdx;
       outH = (baseH - hueDir * ANT_HUE_STEP * d2 + 360) % 360;
       outS = Math.min(1.0, baseS + ANT_SAT_DARK * d2);
-      // Normalized spread: always runs baseV → 0.12 over the full dark range,
-      // so dark-input colors don't collapse multiple shades to near-black.
-      outV = Math.max(0.12, baseV - (baseV - 0.12) * Math.pow(d2 / darkSteps, 0.75));
+      // Pale inputs: lift dark floor so the palette doesn't reach near-black.
+      // Dark inputs keep floor=0.12 for full contrast range.
+      var darkFloor = hslL >= 0.45 ? Math.max(0.12, baseV - 0.55) : 0.12;
+      outV = Math.max(darkFloor, baseV - (baseV - darkFloor) * Math.pow(d2 / darkSteps, 0.75));
     }
 
     var out = hsvToRgb(outH, Math.max(0, Math.min(1, outS)), Math.max(0, Math.min(1, outV)));
