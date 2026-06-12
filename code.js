@@ -200,12 +200,14 @@ async function generateColors(colors, cfg, cache) {
   var colorNames = Object.keys(colors);
   var neutralKey = findColorKey(colorNames, 'neutral');
 
+  var lightShadesMap = {};
   for (var ci = 0; ci < colorNames.length; ci++) {
     var name = colorNames[ci];
     var hex = colors[name];
     if (!hex || hex.length < 4) continue;
     var isNeutralColor = (name.toLowerCase() === neutralKey);
     var shades = buildLightShades(hex, steps, isNeutralColor);
+    lightShadesMap[name.toLowerCase()] = shades;
     for (var si = 0; si < shades.length; si++) {
       var vName = 'color/' + name.toLowerCase() + '/' + shades[si].step;
       var v = getOrCreateVariable(vName, lightColl, 'COLOR', overwrite, cache);
@@ -232,7 +234,7 @@ async function generateColors(colors, cfg, cache) {
       var hex2 = colors[name2];
       if (!hex2 || hex2.length < 4) continue;
       var isNeutral = (name2.toLowerCase() === neutralKey);
-      var darkShades = buildDarkShades(hex2, steps, isNeutral);
+      var darkShades = buildDarkShades(hex2, steps, isNeutral, lightShadesMap[name2.toLowerCase()]);
       for (var si2 = 0; si2 < darkShades.length; si2++) {
         var vName2 = 'color/' + name2.toLowerCase() + '/' + darkShades[si2].step;
         var v2 = getOrCreateVariable(vName2, darkColl, 'COLOR', overwrite, cache);
@@ -1666,49 +1668,58 @@ function buildLightShades(hex, steps, isNeutral) {
   });
 }
 
-// Dark palette — direct HSV ramp, same hue/sat logic as light palette.
-// t=0 = darkest shade (100), t=1 = lightest shade (900/950).
-// V steps are evenly spaced via a mild power curve — no background blending.
+// Dark palette — V ramp with H/S derived from the light palette's dark half (reversed).
+// dark[0] mirrors light[n-1] (darkest light shade), dark[n-1] mirrors light[anchorIdx].
+// This eliminates independent hue drift and keeps both palettes in the same hue family.
 // Neutral: pure grayscale ramp from near-black to near-white.
-function buildDarkShades(hex, steps, isNeutral) {
+function buildDarkShades(hex, steps, isNeutral, lightShades) {
   var n = steps.length;
 
   if (isNeutral) {
     return steps.map(function(step, i) {
       var t = i / (n - 1);
-      // Slight power curve (< 1) spreads the dark end apart for perceptual evenness —
-      // linear V steps look bunched at dark shades due to sRGB gamma.
+      // Slight power curve spreads dark end for perceptual evenness (sRGB gamma).
       var v = 0.04 + 0.84 * Math.pow(t, 0.78);
       var vi = Math.round(v * 255);
       return { step: step, rgb: { r: vi / 255, g: vi / 255, b: vi / 255 } };
     });
   }
 
-  var rgb = hexToRgbArray(hex);
-  var hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
-  var baseH = hsv.h, baseS = hsv.s;
-  var hueDir = (baseH >= 60 && baseH <= 240) ? -1 : 1;
-  // Anchor: shade 500 equivalent sits at ~40% into the dark scale
-  var baseIdx = Math.round(n * 0.4);
+  // Anchor index in the light palette — same formula as buildLightShades uses.
+  var rgb0 = hexToRgbArray(hex);
+  var cmax0 = Math.max(rgb0[0], rgb0[1], rgb0[2]) / 255;
+  var cmin0 = Math.min(rgb0[0], rgb0[1], rgb0[2]) / 255;
+  var hslL  = (cmax0 + cmin0) / 2;
+  var lightAnchorIdx = hslL < 0.45
+    ? Math.max(2, Math.min(n - 3, Math.round((n - 1) * (1 - hslL))))
+    : Math.floor(n / 2);
 
   return steps.map(function(step, i) {
     var t = i / Math.max(1, n - 1);
 
-    // V: power-curve ramp gives ~0.08–0.10 V step between every adjacent pair
+    // V: power-curve ramp from DARK_V_MIN to DARK_V_MAX
     var v = DARK_V_MIN + (DARK_V_MAX - DARK_V_MIN) * Math.pow(t, 0.9);
 
-    // S: multiplicative ramp (0.90→0.60 across the scale) keeps saturation consistent
-    // so mid-range shades don't go gray. Floor of 0.68 ensures pale inputs stay chromatic.
-    var effectiveS = Math.max(baseS, 0.68);
-    var s = Math.max(0.25, Math.min(1.0, effectiveS * (0.90 - 0.30 * t)));
+    // H + S: mirror the light palette's dark half in reverse.
+    // dark[0] (darkest) → light[n-1]; dark[n-1] (brightest) → light[lightAnchorIdx].
+    // This keeps warm hues from drifting into yellow at the bright end.
+    var j = Math.round((n - 1) - i * ((n - 1) - lightAnchorIdx) / (n - 1));
+    j = Math.max(0, Math.min(n - 1, j));
+    var ls = (lightShades && lightShades[j]) ? lightShades[j] : null;
+    var h, s;
+    if (ls) {
+      var refHSV = rgbToHsv(ls.rgb.r * 255, ls.rgb.g * 255, ls.rgb.b * 255);
+      h = refHSV.h;
+      // Floor of 0.50 keeps pale inputs chromatic; vivid inputs use their natural S.
+      s = Math.max(refHSV.s, 0.50);
+    } else {
+      // Fallback: derive directly from hex (no light shades available)
+      var hsv0 = rgbToHsv(rgb0[0], rgb0[1], rgb0[2]);
+      h = hsv0.h;
+      s = Math.max(hsv0.s, 0.50);
+    }
 
-    // H: ±2° rotation per step from baseIdx. Sign matches light palette lighter-step direction:
-    // warm hues rotate toward orange (H+), cool hues rotate toward cyan (H−).
-    // Previous sign was inverted, pushing warm colors (red, yellow) into the pink/magenta sector.
-    var d = i - baseIdx;
-    var h = (baseH + hueDir * ANT_HUE_STEP * d + 360) % 360;
-
-    var out = hsvToRgb(h, s, v);
+    var out = hsvToRgb(h, Math.max(0, Math.min(1, s)), v);
     return { step: step, rgb: { r: out.r / 255, g: out.g / 255, b: out.b / 255 } };
   });
 }
